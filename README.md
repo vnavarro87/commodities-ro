@@ -28,8 +28,8 @@ Distância rodoviária real exigiria roteirização com dados que ou são privad
 ## Como rodar
 
 ```bash
-git clone https://github.com/vnavarro87/commodities-ro.git
-cd commodities-ro
+git clone https://github.com/vnavarro87/graos-ro.git
+cd graos-ro
 pip install -r requirements.txt
 streamlit run app.py
 ```
@@ -45,7 +45,7 @@ Ou use o botão "Atualizar cotações" na sidebar do app.
 ## Estrutura
 
 ```
-commodities_ro/
+graos_ro/
 ├── app.py                       # Aplicação Streamlit
 ├── coleta_mercado.py            # ETL de cotações (yfinance + BCB)
 ├── dados_agro_ro_master.csv     # Produção municipal (IBGE/PAM 2023)
