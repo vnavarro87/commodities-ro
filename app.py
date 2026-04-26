@@ -1,12 +1,12 @@
 import os
 import json
-import subprocess
 import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from coleta_mercado import coletar as _coletar_cotacoes
 
 st.set_page_config(page_title="Grãos de Rondônia — Preço, Câmbio e Risco", layout="wide")
 
@@ -222,17 +222,13 @@ with st.sidebar:
 
     if st.button("Atualizar cotações", help="Busca as cotações mais recentes da CBOT e do Banco Central. Leva ~30 segundos."):
         with st.spinner("Buscando cotações atualizadas..."):
-            _pasta = os.path.dirname(__file__)
-            _result = subprocess.run(
-                ["python", os.path.join(_pasta, "coleta_mercado.py")],
-                capture_output=True, text=True, cwd=_pasta,
-            )
-        if _result.returncode == 0:
-            st.cache_data.clear()
-            st.success("Cotações atualizadas.")
-            st.rerun()
-        else:
-            st.error(f"Erro ao atualizar: {_result.stderr[:400]}")
+            try:
+                _coletar_cotacoes()
+                st.cache_data.clear()
+                st.success("Cotações atualizadas.")
+                st.rerun()
+            except Exception as _e:
+                st.error(f"Erro ao atualizar: {_e}")
 
     st.markdown("---")
     cultura_sel = st.selectbox("Cultura:", list(CULTURAS.keys()), key="cultura_sel")

@@ -1,24 +1,24 @@
 # Grãos de Rondônia — Preço, Câmbio e Risco
 
-Análise de soja e milho em Rondônia sob a perspectiva do mercado internacional: cotação na Bolsa de Chicago, câmbio do dólar, simulação de receita e risco cambial por município.
+Soja e milho são cotados em Chicago, em dólar, em bushel. O fazendeiro de Rondônia recebe em reais, por saca, numa fazenda a centenas de quilômetros do porto. A diferença entre esses dois mundos — o **basis** — era algo que eu queria entender de verdade, não apenas ler sobre.
 
-Cobre **Soja** e **Milho** — as duas principais lavouras temporárias do estado, ambas cotadas em USD/bushel na bolsa de Chicago.
+Este projeto é o resultado desse estudo: uma ferramenta interativa que conecta a cotação da CBOT ao preço efetivo que cada município de Rondônia recebe, mostrando quando o câmbio vira problema e quanto a distância ao porto pesa na conta.
 
 ## O que o projeto mostra
 
-- Cotação histórica de Soja e Milho na CBOT (5 anos, semanal) sobreposta ao dólar
+- Cotação histórica de Soja e Milho na CBOT (5 anos, semanal) sobreposta ao dólar PTAX
 - KPIs em tempo aproximado de mercado: preço em US$/bushel, R$/tonelada e R$/saca
-- Simulador de receita por município: cenários de preço e câmbio
-- Mapa de receita estimada por município no estado todo
-- **Análise de break-even cambial:** dólar mínimo para o produtor não operar no prejuízo, município por município
-- Visualização de margem estimada no cenário atual
+- Simulador de receita por município ou para o estado todo: cenários de preço e câmbio
+- Mapa de receita estimada por município
+- **Break-even cambial município a município:** dólar mínimo para não operar no prejuízo
+- Scatter histórico CBOT × câmbio com curva de break-even — quantas semanas dos últimos 5 anos estiveram no vermelho
 
 ## Stack
 
 - **Python** + **Streamlit** + **Plotly**
-- **yfinance** para cotações CBOT e câmbio
+- **yfinance** para cotações CBOT
+- **Banco Central do Brasil (SGS)** para PTAX e índice de fertilizantes (IPA-OG série 7456)
 - **IBGE/SIDRA** para produção municipal (PAM 2023)
-- Pipeline ETL automatizado e cache de cotações com TTL
 
 ## Como rodar
 
@@ -26,39 +26,46 @@ Cobre **Soja** e **Milho** — as duas principais lavouras temporárias do estad
 git clone https://github.com/vnavarro87/commodities-ro.git
 cd commodities-ro
 pip install -r requirements.txt
-python coleta_mercado.py    # baixa cotações atualizadas
 streamlit run app.py
 ```
+
+O app já inclui um parquet com cotações recentes. Para atualizar antes de rodar:
+
+```bash
+python coleta_mercado.py
+```
+
+Ou use o botão "Atualizar cotações" na sidebar — ele busca CBOT + PTAX + IPA-OG diretamente.
 
 ## Estrutura
 
 ```
 commodities_ro/
 ├── app.py                       # Aplicação Streamlit
-├── coleta_mercado.py            # ETL de cotações via yfinance
+├── coleta_mercado.py            # ETL de cotações (yfinance + BCB)
 ├── dados_agro_ro_master.csv     # Produção municipal (IBGE/PAM 2023)
 ├── mapa_ro.json                 # Geometria municipal (IBGE 2022)
-├── cotacoes_historico.parquet   # Histórico de cotações
-├── METODOLOGIA.md               # Fontes, tratamento e limitações
+├── cotacoes_historico.parquet   # Histórico de cotações (cache local)
+├── METODOLOGIA.md               # Fontes, fórmulas e limitações
 ├── requirements.txt
 └── README.md
 ```
 
 ## Limitações conhecidas
 
-- **Custos de produção:** o break-even usa referência CONAB para Rondônia (Cerejeiras/Cone Sul). Variações intramunicipais de terra e mão de obra não estão modeladas — o slider permite ajustar o custo para refletir realidades específicas.
-- **Basis variável por município** usa distância geodésica (linha reta) ao terminal logístico, não distância rodoviária real. Boa aproximação para análise de portfólio; não substitui pricing operacional de trader.
+- **Custos de produção:** o break-even usa Custo Operacional Total (COT) da CONAB para Rondônia (Cerejeiras/Cone Sul). Variações intramunicipais de terra e mão de obra não estão modeladas — o slider permite ajustar.
+- **Basis variável por município** usa distância geodésica (linha reta) ao terminal logístico, não distância rodoviária real.
 - **Dados de produção** são anuais (PAM 2023). Não há atualização infra-anual.
 
 Detalhamento completo em [METODOLOGIA.md](METODOLOGIA.md).
 
-## Sobre
+## Sobre este projeto
 
-[Lavouras RO](https://github.com/vnavarro87/lavouras-ro) mapeou *o que Rondônia produz e onde*. Este projeto responde a pergunta seguinte: *quanto vale essa produção para o fazendeiro — e por que o município onde ele está muda o preço que ele recebe?*
+[Lavouras RO](https://github.com/vnavarro87/lavouras-ro) mapeou *o que Rondônia produz e onde*. Este projeto tenta responder a pergunta seguinte: *quanto vale essa produção — e por que o município onde o fazendeiro está muda o preço que ele recebe?*
 
-O ponto central é o **basis**: o deságio entre a cotação de Chicago e o preço efetivo na fazenda, que varia com a distância ao terminal logístico, o corredor de escoamento e o câmbio do dia. O simulador torna isso visível município a município — incluindo o câmbio mínimo que cada produtor precisa para não operar no prejuízo.
+Não tenho formação em ciência de dados nem em economia agrícola. Trabalho em tecnologia, tenho interesse genuíno no agronegócio de Rondônia e queria aprender fazendo. Construí este projeto com auxílio intensivo de inteligência artificial (Claude, da Anthropic) — o que me permitiu implementar modelos e pipelines que eu não conseguiria escrever sozinho neste estágio. A IA ajudou com código; as perguntas, as fontes e as escolhas metodológicas são minhas.
 
-Construído como peça de portfólio para demonstrar pipeline ETL multi-fonte, modelagem de cenários com dados públicos e visualização orientada a decisão.
+Se algo parece errado ou pode melhorar, abre uma issue.
 
 ## Licença
 
