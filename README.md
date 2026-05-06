@@ -56,16 +56,34 @@ python coleta_mercado.py
 
 Ou clique em "Atualizar cotações" na sidebar do app.
 
+Para validar a sanidade dos dados de produção (consistência interna, ranges plausíveis):
+
+```bash
+python validar_dados.py
+```
+
+## Validação de dados
+
+Cada número exibido é defensável pela identidade física **Quantidade ≈ Área × Produtividade**, dentro de tolerância de 12% que cobre a diferença Área Plantada vs. Área Colhida do IBGE-PAM (perdas de safra). O script `validar_dados.py` roda 3 níveis de checagem:
+
+1. **Consistência interna** — Quantidade ≈ Área × Produtividade por município/cultura
+2. **Produtividade plausível** — soja entre 2,5–4,2 t/ha; milho entre 1,5–6,5 t/ha (cobre regimes comercial e subsistência)
+3. **Sanidade estrutural** — 52 municípios, sem valores negativos, sem duplicatas
+
+Saída em formato CI-friendly (exit code 0 = aprovado; 1 = violação com município identificado). Quando o IBGE publicar os dados de 2024, basta rerodar e investigar qualquer violação reportada.
+
 ## Estrutura
 
 ```
 soja_milho_ro/
 ├── app.py                       # Aplicação Streamlit
 ├── coleta_mercado.py            # ETL de cotações (yfinance + BCB)
+├── validar_dados.py             # Auditoria de sanidade dos dados IBGE-PAM
 ├── dados_agro_ro_master.csv     # Produção municipal (IBGE/PAM 2023)
 ├── mapa_ro.json                 # Geometria municipal (IBGE 2022)
 ├── cotacoes_historico.parquet   # Histórico de cotações (cache local)
 ├── METODOLOGIA.md               # Fontes, fórmulas e limitações
+├── BUSINESS_CASE.md             # Narrativa do projeto e roadmap
 ├── requirements.txt
 └── README.md
 ```
