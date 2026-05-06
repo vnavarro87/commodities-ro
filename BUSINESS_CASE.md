@@ -45,6 +45,8 @@ Hoje, usam defaults nacionais (CONAB média Brasil) e não capuram variabilidade
 
 **Princípio de Fontes:** Nenhum número entra no app sem publicação identificável (CONAB, IBGE, BCB, Yahoo Finance). Não há calibração heurística nem opinião.
 
+**Engenharia de confiança:** todo número é defensável pela identidade física **Quantidade ≈ Área × Produtividade**, validada automaticamente em `validar_dados.py` para 52 municípios × 2 culturas. Quando o IBGE publicar dados de 2024, o script reroda e qualquer divergência (acima da tolerância de 12% que cobre Área Plantada vs Colhida) é reportada com nome do município e cálculo explícito — pronto para investigação antes de qualquer apresentação.
+
 ---
 
 ## Método & Abordagem
@@ -202,8 +204,9 @@ Se PTAX atual > câmbio break-even → lucro. Caso contrário → prejuízo.
 - [x] Basis municipal (logística Arco Norte)
 - [x] Break-even por cenário
 - [x] Dashboard Streamlit interativo (5 abas)
+- [x] **Validação de sanidade** (`validar_dados.py`) — 3 níveis: consistência interna (Qtd ≈ Área × Produtividade), ranges plausíveis (calibrados pela realidade RO), estrutura (52 municípios, sem negativos/duplicatas). Exit code para CI.
 - [ ] **Documentação técnica completa** — método, fontes, decisões (este arquivo + METODOLOGIA.md)
-- [ ] **Testes de reprodutibilidade** — CI/CD que valida dados públicos semanais
+- [ ] **CI/CD GitHub Actions** — roda `validar_dados.py` semanalmente, abre issue automática se falhar
 
 ### Fase 2: Validação & Primeiro Insight Técnico (Meses 6–12 — 2º semestre MBA)
 
