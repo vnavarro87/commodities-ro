@@ -49,6 +49,17 @@ CUSTO_HA_DEFAULT = {"Soja": 6012.0, "Milho": 4180.0}
 # - ABIOVE — Boletim de Comércio Exterior
 BASIS_DEFAULT_USD = {"Soja": -1.20, "Milho": -0.50}
 
+_MESES_ABREV_PT = {
+    1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+    7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
+}
+
+
+def fmt_mes_pt(d):
+    """Formata data como 'Mai/2026' usando abreviações PT-BR (não depende de locale)."""
+    return f"{_MESES_ABREV_PT[d.month]}/{d.year}"
+
+
 CULTURAS = {
     "Soja": {
         "ticker_col": "Soja_USD_bushel",
@@ -423,8 +434,8 @@ with tab1:
     serie_dolar_plot     = serie_dolar[serie_dolar.index >= corte]
 
     periodo_str = (
-        f"{serie_commodity_plot.index.min().strftime('%b/%Y')} "
-        f"a {serie_commodity_plot.index.max().strftime('%b/%Y')}"
+        f"{fmt_mes_pt(serie_commodity_plot.index.min())} "
+        f"a {fmt_mes_pt(serie_commodity_plot.index.max())}"
     )
     st.subheader(f"Histórico: {cultura_sel} e câmbio — {janela_sel}")
 
@@ -450,12 +461,12 @@ with tab1:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_color="white",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=1),
-        margin={"t": 30, "b": 60, "l": 0, "r": 0},
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin={"t": 50, "b": 30, "l": 0, "r": 0},
         height=480,
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, width='stretch', config={'displayModeBar': False})
 
     st.caption(
         f"Eixo esquerdo (verde): preço negociado na Bolsa de Chicago em centavos de dólar por bushel. "
@@ -503,7 +514,7 @@ with tab1:
         pc_12m = float(df_hist["Poder_Compra"].iloc[-52]) if len(df_hist) > 52 else float(df_hist["Poder_Compra"].iloc[0])
         pc_pico = float(df_hist["Poder_Compra"].max())
         pc_min = float(df_hist["Poder_Compra"].min())
-        data_inicio = df_hist.index.min().strftime("%b/%Y")
+        data_inicio = fmt_mes_pt(df_hist.index.min())
 
         rk1, rk2, rk3, rk4 = st.columns(4)
         rk1.metric(
@@ -512,7 +523,7 @@ with tab1:
             f"{((pc_atual / pc_12m - 1) * 100):+.1f}% 12m",
             help=f"Base 100 = {data_inicio}. Acima de 100 = ganhou poder real desde a base. Abaixo = perdeu.",
         )
-        _periodo_pc = f"{df_hist.index.min().strftime('%b/%Y')}–{df_hist.index.max().strftime('%b/%Y')}"
+        _periodo_pc = f"{fmt_mes_pt(df_hist.index.min())}–{fmt_mes_pt(df_hist.index.max())}"
         rk2.metric("Pico histórico", f"{pc_pico:.0f}",
                    help=f"Melhor momento de poder de compra no período {_periodo_pc}.")
         rk3.metric("Mínimo histórico", f"{pc_min:.0f}",
@@ -527,6 +538,7 @@ with tab1:
         # As séries individuais Saca_Idx e Fert_Idx ficam ocultas — a partir de
         # base 100 em ano antigo, ambas crescem em escala que esmaga o sinal de PC.
         # Quem quiser ver as componentes pode expandir abaixo.
+        _hover_dates_rt = [fmt_mes_pt(d) for d in df_hist.index]
         fig_rt = go.Figure()
         fig_rt.add_trace(
             go.Scatter(
@@ -535,7 +547,8 @@ with tab1:
                 fill="tozeroy",
                 fillcolor="rgba(255, 189, 69, 0.08)",
                 name="Poder de compra (saca ÷ fertilizante)",
-                hovertemplate="<b>%{x|%b/%Y}</b><br>Poder de compra: %{y:.0f}<extra></extra>",
+                customdata=_hover_dates_rt,
+                hovertemplate="<b>%{customdata}</b><br>Poder de compra: %{y:.0f}<extra></extra>",
             )
         )
         fig_rt.add_hline(
@@ -555,7 +568,7 @@ with tab1:
             showlegend=False,
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
         )
-        st.plotly_chart(fig_rt, width='stretch')
+        st.plotly_chart(fig_rt, width='stretch', config={'displayModeBar': False})
 
         st.caption(
             f"Poder de compra = (índice da saca) ÷ (índice do fertilizante) × 100. "
@@ -573,13 +586,15 @@ with tab1:
                 x=df_hist.index, y=df_hist["Saca_Idx"],
                 line=dict(color="#00d26a", width=2),
                 name=f"Saca {cultura_sel}",
-                hovertemplate="<b>%{x|%b/%Y}</b><br>Saca: %{y:.0f}<extra></extra>",
+                customdata=_hover_dates_rt,
+                hovertemplate="<b>%{customdata}</b><br>Saca: %{y:.0f}<extra></extra>",
             ))
             fig_comp.add_trace(go.Scatter(
                 x=df_hist.index, y=df_hist["Fert_Idx"],
                 line=dict(color="#ff4b4b", width=2, dash="dot"),
                 name="Fertilizantes (IPA-OG / FGV)",
-                hovertemplate="<b>%{x|%b/%Y}</b><br>Fert.: %{y:.0f}<extra></extra>",
+                customdata=_hover_dates_rt,
+                hovertemplate="<b>%{customdata}</b><br>Fert.: %{y:.0f}<extra></extra>",
             ))
             fig_comp.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
@@ -592,7 +607,7 @@ with tab1:
                 legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=1),
                 hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
             )
-            st.plotly_chart(fig_comp, width='stretch')
+            st.plotly_chart(fig_comp, width='stretch', config={'displayModeBar': False})
             st.caption(
                 "As duas curvas em base 100 acumulam efeito inflacionário ao longo de "
                 "décadas — daí a razão (curva principal acima) ser a forma correta de comparar."
@@ -805,7 +820,7 @@ with tab2:
         paper_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
-    st.plotly_chart(fig_mapa, width='stretch')
+    st.plotly_chart(fig_mapa, width='stretch', config={'displayModeBar': False})
 
     basis_label = (
         f"deságio variável por município (base US$ {basis_usd:+.2f}, ajustado por distância ao terminal)"
@@ -901,7 +916,7 @@ with tab2:
             height=320, margin={"t": 10, "b": 0, "l": 0, "r": 0},
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
         )
-        st.plotly_chart(fig_top10, width='stretch')
+        st.plotly_chart(fig_top10, width='stretch', config={'displayModeBar': False})
         st.caption(
             f"Exposição = receita estimada de {cultura_sel.lower()} ÷ PIB Agropecuário municipal × 100. "
             f"Destaque em vermelho: {mun_sim}. "
@@ -1020,7 +1035,7 @@ with tab3:
             margin={"t": 20, "b": 0, "l": 0, "r": 0},
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
         )
-        st.plotly_chart(fig_be, width='stretch')
+        st.plotly_chart(fig_be, width='stretch', config={'displayModeBar': False})
 
     with col_g2:
         st.markdown("**Margem estimada no cenário atual (R$ Mi)**")
@@ -1042,7 +1057,7 @@ with tab3:
             margin={"t": 20, "b": 0, "l": 0, "r": 0},
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
         )
-        st.plotly_chart(fig_m, width='stretch')
+        st.plotly_chart(fig_m, width='stretch', config={'displayModeBar': False})
 
     custo_str = f"R$ {custo_ha:,.0f}/ha"
     if choque_frete > 0:
@@ -1064,7 +1079,7 @@ with tab3:
 # --- ABA 4: RISCO HISTÓRICO ---
 with tab4:
     _periodo_hist_str = (
-        f"{df_cot.index.min().strftime('%b/%Y')} a {df_cot.index.max().strftime('%b/%Y')}"
+        f"{fmt_mes_pt(df_cot.index.min())} a {fmt_mes_pt(df_cot.index.max())}"
     )
     st.subheader(f"Risco Histórico — {cultura_sel} ({_periodo_hist_str})")
 
@@ -1226,7 +1241,7 @@ with tab4:
         margin={"t": 10, "b": 60, "l": 0, "r": 0},
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
-    st.plotly_chart(fig_scatter, width='stretch')
+    st.plotly_chart(fig_scatter, width='stretch', config={'displayModeBar': False})
 
     # --- KPIs ---
     m1, m2, m3, m4 = st.columns(4)
@@ -1317,7 +1332,7 @@ with tab5:
     n_anos = df_sz["ano"].nunique()
     anos_unicos = sorted(df_sz["ano"].unique())
     periodo_sz_str = (
-        f"{df_sz.index.min().strftime('%b/%Y')} a {df_sz.index.max().strftime('%b/%Y')}"
+        f"{fmt_mes_pt(df_sz.index.min())} a {fmt_mes_pt(df_sz.index.max())}"
     )
 
     MESES_PT = {
@@ -1383,11 +1398,11 @@ with tab5:
         line=dict(color="#00d26a", width=2.5),
         marker=dict(size=9, color="#00d26a", line=dict(color="white", width=1.5)),
         name="Índice sazonal médio",
-        customdata=sz_stats["delta_pct"],
+        customdata=np.array(sz_stats["delta_pct"]).reshape(-1, 1),
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Índice: %{y:.2f}<br>"
-            "vs média anual: %{customdata:+.1f}%<extra></extra>"
+            "vs média anual: %{customdata[0]:+.1f}%<extra></extra>"
         ),
     ))
 
@@ -1409,7 +1424,7 @@ with tab5:
         height=380,
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
-    st.plotly_chart(fig_sz, width='stretch')
+    st.plotly_chart(fig_sz, width='stretch', config={'displayModeBar': False})
 
     delta_melhor_pct = (melhor_mes["mean"] - 1.0) * 100
     delta_pior_pct   = (pior_mes["mean"] - 1.0) * 100
@@ -1539,7 +1554,7 @@ with tab5:
             bargap=0.25,
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
         )
-        st.plotly_chart(fig_v, width='stretch')
+        st.plotly_chart(fig_v, width='stretch', config={'displayModeBar': False})
 
         st.markdown(
             f'<div class="context-box" style="border-left-color:#808495;">'
