@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping app
-        run: curl -s https://graos-ro.streamlit.app/ > /dev/null
+        run: curl -s https://soja-milho-ro.streamlit.app/ > /dev/null

@@ -1,17 +1,19 @@
 # Metodologia
 
-Este documento descreve as fontes, fórmulas e limitações do projeto **Grãos de Rondônia — Preço, Câmbio e Risco**.
+Este documento descreve as fontes, fórmulas e limitações do projeto **Soja e Milho de Rondônia — Preço, Câmbio e Risco**.
 
 ## Fontes
 
-| Dado | Fonte | Frequência | Período |
-|------|-------|------------|---------|
-| Soja CBOT (USD/bushel) | Yahoo Finance — ticker `ZS=F` | Semanal | 5 anos |
-| Milho CBOT (USD/bushel) | Yahoo Finance — ticker `ZC=F` | Semanal | 5 anos |
-| Dólar PTAX (BRL/USD) | Banco Central do Brasil — SGS série 1 (API oficial) | Diário, reamostrado semanal | 5 anos |
-| Índice IPA-OG Fertilizantes | Banco Central do Brasil — SGS série 7456 (FGV) | Mensal, reamostrado semanal | 5 anos |
+| Dado | Fonte | Frequência | Cobertura |
+|------|-------|------------|-----------|
+| Soja CBOT (USD/bushel) | Yahoo Finance — ticker `ZS=F` | Semanal (sexta) | Histórico máximo (~30 anos) |
+| Milho CBOT (USD/bushel) | Yahoo Finance — ticker `ZC=F` | Semanal (sexta) | Histórico máximo (~30 anos) |
+| Dólar PTAX (BRL/USD) | Banco Central do Brasil — SGS série 1 (API oficial) | Diário, reamostrado semanal | Desde 2000 |
+| Índice IPA-OG Fertilizantes | Banco Central do Brasil — SGS série 7456 (FGV) | Mensal, reamostrado semanal | Desde 1995 |
 | Produção municipal | IBGE/PAM 2023 — tabela 1612 (API SIDRA) | Anual | 2023 |
 | Geometria municipal | IBGE — Malha Municipal 2022 | — | — |
+
+A janela utilizada na visualização varia por aba: **Aba 1 (preços e câmbio)** mostra 5 ou 10 anos por seleção do usuário; **Abas 2 e 3 (simulador e risco cambial)** usam o último valor disponível como cenário corrente; **Aba 4 (risco histórico)** usa todo o histórico disponível para mapear semanas com lucro vs prejuízo; **Aba 5 (sazonalidade)** usa os últimos 10 anos com índice sazonal padronizado (ver seção própria). Esta separação é deliberada: dados nominais sem ajuste de inflação são adequados para janelas curtas e para análises baseadas em razão (poder de compra, índice sazonal); janelas longas em valores nominais são apresentadas como contexto, não como base para decisão.
 
 ## Fórmulas
 
@@ -125,33 +127,12 @@ O modelo é **aditivo**: frete rodoviário variável (fazenda → hub) + custo f
 
 **Resultado esperado:** PVH domina a quase totalidade dos municípios de RO por proximidade geodésica. Isso é consistente com dados reais: para Vilhena (extremo sul de RO), o custo total via PVH (~R$230/t) ainda é inferior ao custo via Rondonópolis (~R$310/t) porque a vantagem da ferrovia não compensa os ~1.050 km de rodoviário adicionais. Rondonópolis se torna competitiva para municípios de RO apenas com premissas de tarifa rodoviária elevada ou desconto ferroviário maior do que o observado.
 
-**Pedágio Nova 364 (BR-364/RO):**
-
-A concessão Nova 364 introduziu pedágios na BR-364 em Rondônia. O modelo computa o pedágio por praça cruzada para a rota via Porto Velho, usando latitude do centroide municipal como proxy da posição norte-sul na rodovia.
-
-| Praça | Cidade | Cat 9 (R$/passagem) |
-|-------|--------|--------------------:|
-| P6 | Pimenta Bueno 1 | R$71,40 |
-| P7 | Pimenta Bueno 2 | R$247,80 |
-| P5 | Presidente Médici | R$87,50 |
-| P4 | Ouro Preto do Oeste | R$175,00 |
-| P3 | Ariquemes | R$135,10 |
-| P2 | Cujubim | R$259,00 |
-| P1 | Candeias do Jamari | R$37,80 |
-
-Categoria 9 = bitrem graneleiro, 7 eixos, ~55 t de payload — padrão dominante para grãos no Brasil. Multiplicador 7.0 × tarifa Categoria 1. Confirmação de categoria pendente (ANTT/Nova 364).
-
-Custo total para municípios do Cone Sul (todas as 7 praças): R$1.013,60 ÷ 55 t = **R$18,43/t**.
-
-Para rotas via Rondonópolis e Miritituba: pedágios em concessões distintas — dados não disponíveis, não computados.
-
 **Limitações honestas deste modelo:**
 
 1. **Distância em linha reta ≠ distância rodoviária.** O Haversine subestima quilometragem real. Para análise de portfólio é aproximação razoável; para decisão operacional, não.
 2. **Não modela contratos comerciais.** A escolha de hub depende de quem comprou a safra (Cargill domina o Madeira; Rumo+ADM/Bunge dominam Santos via Rondonópolis). Esses contratos não são públicos.
 3. **Não modela capacidade de transbordo nem sazonalidade.** Estiagem do Madeira, manutenção de eclusas, gargalos de embarque — simplificados em parâmetros médios.
-4. **Pedágio computado apenas para rota PVH.** Rondonópolis e Miritituba têm concessões distintas sem dados disponíveis — o modelo subestima o custo dessas rotas em relação à PVH na mesma proporção.
-5. **Categoria de veículo (Cat 9) é referência setorial.** Confirmação pendente via ANTT/Nova 364 sobre mix real de categorias em operação na BR-364/RO.
+4. **Pedágios não computados.** A concessão Nova 364 (BR-364/RO) e concessões de outros corredores (BR-163, Rumo) introduzem custos por praça que variam por categoria de veículo. Em termos relativos entre hubs, esse custo é pequeno frente ao frete rodoviário e ao custo fixo pós-hub — o modelo segue defensável para análise de portfólio. Para pricing operacional, refazer com tabelas tarifárias atualizadas.
 
 A intenção do modelo é mostrar **heterogeneidade espacial-econômica do basis brasileiro** de forma defensável, não substituir um sistema de pricing real de trader.
 
@@ -175,7 +156,7 @@ poder_de_compra = saca_idx ÷ fertilizante_idx × 100
 
 ## Limitações
 
-1. **Boi Gordo ausente em V1.** As APIs públicas brasileiras estão fragmentadas: IPEADATA descontinuou a série `BM_BOI`, BCB SGS não expõe série de boi gordo, CEPEA não tem API. Solução requer scraping ou subscrição paga, deixado para V2.
+1. **CBOT é referência, não preço de balcão.** O produtor brasileiro vende grão a uma trading (Cargill, Bunge, ADM, Amaggi, Cofco, Louis Dreyfus) ou cooperativa, não diretamente à Bolsa de Chicago. O "preço Chicago" é a cotação internacional de referência sobre a qual o contrato com a trading é construído. O preço efetivo recebido na fazenda é **CBOT − basis**, e o basis embute frete até o porto, qualidade, prazos e a margem comercial da trading. Esta análise modela o preço efetivo via basis calibrado por fontes setoriais — não substitui o contrato real.
 
 2. **Basis calibrado por valores médios setoriais.** O basis padrão (soja −1.20, milho −0.50) é a média 2023–25 de USDA, CONAB e ABIOVE — e o slider permite simular cenários. O modo "basis variável por município" ajusta dinamicamente pelo frete até o hub mais próximo, mas continua sendo aproximação: o basis real depende também de safra, capacidade de transbordo, contratos de compra do trader e câmbio do dia. Não é uma cotação de balcão real-time.
 
@@ -184,8 +165,6 @@ poder_de_compra = saca_idx ÷ fertilizante_idx × 100
 4. **Dados de produção anuais.** PAM/IBGE publica dados consolidados com defasagem de ~1 ano. Não há captura infra-anual; o último ano fechado é 2023.
 
 5. **Cotações com defasagem.** Yahoo Finance tem ~15 min de atraso para futuros CBOT. O PTAX é divulgado pelo BCB ao final de cada dia útil. O cache da aplicação tem TTL de 1 hora — adequado para análise de cenário, não para trading.
-
-7. **PTAX vs. dólar comercial:** o PTAX é a média ponderada das negociações entre instituições financeiras divulgada pelo BCB ao final de cada dia útil. É a referência oficial para liquidação de contratos cambiais e é o câmbio adequado para análise econômica e modelagem de risco. Foi escolhido em vez do dólar comercial do Yahoo Finance por ser fonte primária e de origem oficial.
 
 6. **Cotação semanal.** Para reduzir tamanho do parquet, o histórico é semanal. Para análise diária, ajustar `INTERVALO` em `coleta_mercado.py` para `"1d"`.
 

@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from coleta_mercado import coletar as _coletar_cotacoes
 
-st.set_page_config(page_title="Grãos de Rondônia — Preço, Câmbio e Risco", layout="wide")
+st.set_page_config(page_title="Soja e Milho de Rondônia — Preço, Câmbio e Risco", layout="wide")
 
 st.markdown("""
     <style>
@@ -129,9 +129,6 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 # - PVH: hidrovia Madeira → Itacoatiara/Santarém — ANTAQ/HBSA, range R$70-110/t (2024)
 # - Rondonópolis: ferrovia Rumo → Santos — IMEA/Rumo Relatório Tarifário 2024, R$140-180/t
 # - Miritituba: barcaças Tapajós → Vila do Conde — estimativa ESALQ-LOG; dado primário pendente
-# Pedágios Nova 364 (BR-364/RO): não computados — concessão recente, tarifa de frete
-# de referência (pré-Nova 364) não foi recalibrada. Modelar quando houver cotação
-# de frete pós-concessão confirmada. Ver METODOLOGIA.md para detalhes.
 HUBS_LOGISTICOS = {
     "Porto Velho (Arco Norte)": {
         "coord": (-8.7619, -63.9039),
@@ -217,8 +214,8 @@ fator = perfil_pct / 100
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("Grãos de Rondônia")
-    st.caption("Preço, câmbio e risco: soja e milho de Rondônia na perspectiva do mercado internacional.")
+    st.title("Soja e Milho de Rondônia")
+    st.caption("Preço, câmbio e risco — soja e milho de RO na perspectiva do mercado internacional.")
 
     if st.button("Atualizar cotações", help="Busca as cotações mais recentes da CBOT e do Banco Central. Leva ~30 segundos."):
         with st.spinner("Buscando cotações atualizadas..."):
@@ -310,13 +307,14 @@ with st.sidebar:
     st.subheader("Fontes")
     st.caption("""
     - **Produção municipal:** IBGE/PAM 2023 (tabela 1612)
-    - **Cotações Soja/Milho:** Bolsa de Chicago via Yahoo Finance (semanal, 5 anos)
-    - **Câmbio:** PTAX oficial — Banco Central do Brasil (SGS série 1)
+    - **Cotações Soja/Milho:** Bolsa de Chicago via Yahoo Finance (semanal, histórico máximo)
+    - **Câmbio:** PTAX oficial — Banco Central do Brasil (SGS série 1, desde 2000)
+    - **Fertilizantes:** Índice IPA-OG FGV via BCB (SGS série 7456, desde 1995)
     """)
     st.caption("Veja `METODOLOGIA.md` para detalhes técnicos e limitações.")
 
 # --- HEADER ---
-st.title("Grãos de Rondônia — Preço, Câmbio e Risco")
+st.title("Soja e Milho de Rondônia — Preço, Câmbio e Risco")
 st.markdown(
     '<div class="disclaimer">'
     "Análise da produção agrícola de RO sob a perspectiva do mercado: "
@@ -333,7 +331,12 @@ st.markdown(
     "e regional, útil para cooperativas, traders, seguradoras e formuladores de política. "
     "<b>Não reflete o produtor individual:</b> dentro de cada município existem "
     "produtores acima e abaixo da média, com estruturas de custo e produtividade próprias. "
-    "Para análise individual seriam necessários dados que não são públicos (CPF/CNPJ)."
+    "Para análise individual seriam necessários dados que não são públicos (CPF/CNPJ).<br><br>"
+    "<b>Sobre o preço Chicago:</b> é a cotação internacional de referência. "
+    "O produtor brasileiro não vende direto à CBOT — vende a uma trading "
+    "(Cargill, Bunge, ADM, Amaggi, Cofco, Louis Dreyfus) ou cooperativa, "
+    "que precifica o contrato como CBOT − basis. O preço efetivo na fazenda é sempre "
+    "menor que a cotação de Chicago — a diferença é o basis (frete + qualidade + prazo + margem comercial)."
     "</div>",
     unsafe_allow_html=True,
 )
@@ -394,25 +397,48 @@ st.markdown(
 )
 
 # --- ABAS ---
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Preços e Câmbio", "Simulador de Receita", "Risco Cambial", "Cenários Combinados",
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "Preços e Câmbio", "Simulador de Receita", "Risco Cambial",
+    "Cenários Combinados", "Sazonalidade e Hedge",
 ])
 
 # --- ABA 1: COTAÇÕES × CÂMBIO ---
 with tab1:
-    st.subheader(f"Histórico: {cultura_sel} e câmbio — últimos 5 anos")
+    # Janelas limitadas a 10 anos para dados nominais sem deflação.
+    # Períodos mais longos exigiriam deflação por CPI americano (CBOT) e IPCA (BRL),
+    # o que não está implementado nesta versão. Dados de sazonalidade e hedge
+    # usam o histórico completo (~30 anos) porque trabalham com comparações relativas.
+    anos_opcoes = {"5 anos": 5, "10 anos": 10}
+    janela_sel = st.radio(
+        "Período do histórico:",
+        options=list(anos_opcoes.keys()),
+        index=0,
+        horizontal=True,
+        key="janela_historico",
+    )
+    anos_janela = anos_opcoes[janela_sel]
+    corte = pd.Timestamp.now() - pd.DateOffset(years=anos_janela)
+
+    serie_commodity_plot = serie_commodity[serie_commodity.index >= corte]
+    serie_dolar_plot     = serie_dolar[serie_dolar.index >= corte]
+
+    periodo_str = (
+        f"{serie_commodity_plot.index.min().strftime('%b/%Y')} "
+        f"a {serie_commodity_plot.index.max().strftime('%b/%Y')}"
+    )
+    st.subheader(f"Histórico: {cultura_sel} e câmbio — {janela_sel}")
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(
         go.Scatter(
-            x=serie_commodity.index, y=serie_commodity.values,
+            x=serie_commodity_plot.index, y=serie_commodity_plot.values,
             name=f"{cultura_sel} — Chicago (US$/bu)", line=dict(color="#00d26a", width=2),
         ),
         secondary_y=False,
     )
     fig.add_trace(
         go.Scatter(
-            x=serie_dolar.index, y=serie_dolar.values,
+            x=serie_dolar_plot.index, y=serie_dolar_plot.values,
             name="Dólar PTAX (R$)", line=dict(color="#ffbd45", width=2, dash="dot"),
         ),
         secondary_y=True,
@@ -432,9 +458,15 @@ with tab1:
     st.plotly_chart(fig, width='stretch')
 
     st.caption(
-        "Eixo esquerdo (verde): preço negociado na Bolsa de Chicago em centavos de dólar por bushel — referência internacional. "
-        "Eixo direito (amarelo): câmbio (R$/US$). "
-        "A receita do produtor depende dos dois juntos — câmbio amplifica ou neutraliza variações de preço."
+        f"Eixo esquerdo (verde): preço negociado na Bolsa de Chicago em centavos de dólar por bushel. "
+        f"Eixo direito (amarelo): câmbio oficial PTAX (R$/US$) — Banco Central do Brasil, SGS série 1. "
+        f"Período: {periodo_str}. "
+        f"Valores nominais — sem ajuste por inflação (CPI americano para CBOT; IPCA para câmbio). "
+        f"Esta série serve como referência de contexto de mercado. "
+        f"O produtor recebe e paga custos em valores nominais — a análise de se o preço atual "
+        f"cobre o custo está na aba Risco Cambial. "
+        f"Para comparação de poder de compra ao longo do tempo, use o Índice de Poder de Compra "
+        f"(seção abaixo), que trabalha com razão entre preços e cancela grande parte do efeito inflacionário."
     )
 
     # --- ÍNDICE DE PODER DE COMPRA ---
@@ -480,45 +512,35 @@ with tab1:
             f"{((pc_atual / pc_12m - 1) * 100):+.1f}% 12m",
             help=f"Base 100 = {data_inicio}. Acima de 100 = ganhou poder real desde a base. Abaixo = perdeu.",
         )
-        rk2.metric("Pico (5 anos)", f"{pc_pico:.0f}",
-                   help="Melhor momento de poder de compra")
-        rk3.metric("Mínimo (5 anos)", f"{pc_min:.0f}",
-                   help="Pior momento — maior aperto sobre o produtor")
+        _periodo_pc = f"{df_hist.index.min().strftime('%b/%Y')}–{df_hist.index.max().strftime('%b/%Y')}"
+        rk2.metric("Pico histórico", f"{pc_pico:.0f}",
+                   help=f"Melhor momento de poder de compra no período {_periodo_pc}.")
+        rk3.metric("Mínimo histórico", f"{pc_min:.0f}",
+                   help=f"Pior momento — maior aperto sobre o produtor no período {_periodo_pc}.")
         rk4.metric(
             f"Saca {cultura_sel} (R$/saca)",
             f"R$ {df_hist['preco_BRL_saca'].iloc[-1]:,.2f}",
             help="Preço efetivo atual (cotação Chicago + deságio × câmbio)",
         )
 
-        # Gráfico das 3 curvas
+        # Curva única: Poder de Compra (razão cancela inflação por construção).
+        # As séries individuais Saca_Idx e Fert_Idx ficam ocultas — a partir de
+        # base 100 em ano antigo, ambas crescem em escala que esmaga o sinal de PC.
+        # Quem quiser ver as componentes pode expandir abaixo.
         fig_rt = go.Figure()
         fig_rt.add_trace(
             go.Scatter(
-                x=df_hist.index, y=df_hist["Saca_Idx"],
-                line=dict(color="#00d26a", width=2),
-                name=f"Saca {cultura_sel}",
-                hovertemplate="<b>%{x|%b/%Y}</b><br>Saca: %{y:.0f}<extra></extra>",
-            )
-        )
-        fig_rt.add_trace(
-            go.Scatter(
-                x=df_hist.index, y=df_hist["Fert_Idx"],
-                line=dict(color="#ff4b4b", width=2, dash="dot"),
-                name="Fertilizantes (índice FGV)",
-                hovertemplate="<b>%{x|%b/%Y}</b><br>Fert.: %{y:.0f}<extra></extra>",
-            )
-        )
-        fig_rt.add_trace(
-            go.Scatter(
                 x=df_hist.index, y=df_hist["Poder_Compra"],
-                line=dict(color="#ffbd45", width=3),
-                name="Poder de compra (saca ÷ fert.)",
+                line=dict(color="#ffbd45", width=2.5),
+                fill="tozeroy",
+                fillcolor="rgba(255, 189, 69, 0.08)",
+                name="Poder de compra (saca ÷ fertilizante)",
                 hovertemplate="<b>%{x|%b/%Y}</b><br>Poder de compra: %{y:.0f}<extra></extra>",
             )
         )
         fig_rt.add_hline(
             y=100, line_dash="dash", line_color="white", line_width=1,
-            annotation_text="Base 100",
+            annotation_text=f"Base 100 = {data_inicio}",
             annotation_position="bottom right",
             annotation_font_color="white",
         )
@@ -527,20 +549,52 @@ with tab1:
             plot_bgcolor="rgba(0,0,0,0)",
             font_color="white",
             xaxis_title="",
-            yaxis_title=f"Índice (base 100 = {data_inicio})",
+            yaxis_title=f"Poder de compra (base 100 = {data_inicio})",
             margin={"t": 20, "b": 0, "l": 0, "r": 0},
-            height=420,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=380,
+            showlegend=False,
         )
         st.plotly_chart(fig_rt, width='stretch')
 
         st.caption(
             f"Poder de compra = (índice da saca) ÷ (índice do fertilizante) × 100. "
             f"Base 100 em {data_inicio}. "
+            f"Acima de 100: produtor ganhou poder de compra real desde a base; abaixo: perdeu. "
+            f"Por ser razão entre dois preços, a métrica cancela boa parte do efeito inflacionário "
+            f"e permite comparação ao longo de toda a série histórica. "
             f"Índice de fertilizantes: FGV/BCB (IPA-OG, série 7456). "
-            f"Calculado com deságio de US$ {basis_usd:+.2f}/bu. "
-            f"O choque global de fertilizantes (Rússia-Ucrânia, 2022) é visível como perda forte do poder de compra naquele período."
+            f"Calculado com deságio de US$ {basis_usd:+.2f}/bu."
         )
+
+        with st.expander("Ver componentes (saca e fertilizante separados)", expanded=False):
+            fig_comp = go.Figure()
+            fig_comp.add_trace(go.Scatter(
+                x=df_hist.index, y=df_hist["Saca_Idx"],
+                line=dict(color="#00d26a", width=2),
+                name=f"Saca {cultura_sel}",
+                hovertemplate="<b>%{x|%b/%Y}</b><br>Saca: %{y:.0f}<extra></extra>",
+            ))
+            fig_comp.add_trace(go.Scatter(
+                x=df_hist.index, y=df_hist["Fert_Idx"],
+                line=dict(color="#ff4b4b", width=2, dash="dot"),
+                name="Fertilizantes (IPA-OG / FGV)",
+                hovertemplate="<b>%{x|%b/%Y}</b><br>Fert.: %{y:.0f}<extra></extra>",
+            ))
+            fig_comp.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color="white",
+                xaxis_title="",
+                yaxis_title=f"Índice (base 100 = {data_inicio})",
+                margin={"t": 10, "b": 0, "l": 0, "r": 0},
+                height=320,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            )
+            st.plotly_chart(fig_comp, width='stretch')
+            st.caption(
+                "As duas curvas em base 100 acumulam efeito inflacionário ao longo de "
+                "décadas — daí a razão (curva principal acima) ser a forma correta de comparar."
+            )
     else:
         st.info("Coluna `IPA_Fertilizante_Idx` ausente. Execute `python coleta_mercado.py` para atualizar.")
 
@@ -1003,11 +1057,14 @@ with tab3:
 
 # --- ABA 4: RISCO HISTÓRICO ---
 with tab4:
-    st.subheader(f"Risco Histórico — {cultura_sel} nos últimos 5 anos")
+    _periodo_hist_str = (
+        f"{df_cot.index.min().strftime('%b/%Y')} a {df_cot.index.max().strftime('%b/%Y')}"
+    )
+    st.subheader(f"Risco Histórico — {cultura_sel} ({_periodo_hist_str})")
 
     st.markdown(
         '<div class="context-box">'
-        "<b>O que mostra:</b> cada ponto é uma semana dos últimos 5 anos, posicionada pelo "
+        f"<b>O que mostra:</b> cada ponto é uma semana entre {_periodo_hist_str}, posicionada pelo "
         "<b>preço em Chicago</b> (eixo X) e pelo <b>câmbio</b> (eixo Y). "
         "<span style='color:#00d26a;font-weight:600'>Verde</span> = o produtor teria tido margem positiva naquela semana. "
         "<span style='color:#ff4b4b;font-weight:600'>Vermelho</span> = prejuízo. "
@@ -1168,10 +1225,10 @@ with tab4:
     # --- KPIs ---
     m1, m2, m3, m4 = st.columns(4)
     m1.metric(
-        "Semanas com lucro — 5 anos",
+        "Semanas com lucro",
         f"{n_lucro_hist} de {n_total_hist}",
         f"{pct_lucro_hist:.0f}% do período",
-        help="Quantas semanas dos últimos 5 anos teriam resultado em margem positiva com o custo configurado.",
+        help=f"Quantas semanas no período histórico ({_periodo_hist_str}) teriam resultado em margem positiva com o custo configurado.",
     )
     m2.metric(
         "Margem no cenário atual",
@@ -1181,12 +1238,12 @@ with tab4:
     m3.metric(
         "Melhor semana histórica",
         f"R$ {df_scatter['margem_ha'].max():,.0f}/ha",
-        help="Semana com maior margem nos últimos 5 anos.",
+        help=f"Semana com maior margem no período {_periodo_hist_str}.",
     )
     m4.metric(
         "Pior semana histórica",
         f"R$ {df_scatter['margem_ha'].min():,.0f}/ha",
-        help="Semana com menor margem nos últimos 5 anos.",
+        help=f"Semana com menor margem no período {_periodo_hist_str}.",
     )
 
     # --- NARRATIVA ---
@@ -1231,6 +1288,287 @@ with tab4:
         f"Curva tracejada = break-even (acima = câmbio cobre o custo; abaixo = prejuízo). "
         f"Estrela amarela = cenário atual. {n_total_hist} semanas analisadas."
     )
+
+# --- ABA 5: SAZONALIDADE E VARIAÇÃO CAMBIAL INTRA-SAFRA ---
+with tab5:
+    st.subheader(f"Sazonalidade e Variação Cambial Intra-Safra — {cultura_sel}")
+
+    # --- DADOS BASE ---
+    _bt     = BUSHELS_POR_TONELADA[cultura_sel]
+    _ticker = cfg["ticker_col"]
+
+    # Janela de 10 anos: regime produtivo recente (Centro-Oeste/Norte dominante,
+    # safrinha consolidada). Histórico mais antigo mistura regimes diferentes
+    # de produção e logística — não é comparável diretamente.
+    JANELA_ANOS_SZ = 10
+    corte_sz = pd.Timestamp.now() - pd.DateOffset(years=JANELA_ANOS_SZ)
+
+    df_sz_full = df_cot[[_ticker, "Dolar_PTAX"]].dropna().copy()
+    df_sz = df_sz_full[df_sz_full.index >= corte_sz].copy()
+    df_sz["preco_saca"] = (df_sz[_ticker] / 100 + basis_usd) * _bt * df_sz["Dolar_PTAX"] * 0.06
+    df_sz["mes"] = df_sz.index.month
+    df_sz["ano"] = df_sz.index.year
+    n_anos = df_sz["ano"].nunique()
+    anos_unicos = sorted(df_sz["ano"].unique())
+    periodo_sz_str = (
+        f"{df_sz.index.min().strftime('%b/%Y')} a {df_sz.index.max().strftime('%b/%Y')}"
+    )
+
+    MESES_PT = {
+        1: "Janeiro",   2: "Fevereiro", 3: "Março",
+        4: "Abril",     5: "Maio",      6: "Junho",
+        7: "Julho",     8: "Agosto",    9: "Setembro",
+        10: "Outubro",  11: "Novembro", 12: "Dezembro",
+    }
+
+    st.markdown(
+        f'<div class="context-box">'
+        f"<b>O que mostra:</b> duas análises complementares construídas sobre {periodo_sz_str} "
+        f"de dados públicos de CBOT (Yahoo Finance) e PTAX (Banco Central — SGS série 1). "
+        f"<b>(1) Índice sazonal</b> identifica em quais meses o preço efetivo recebido em "
+        f"Rondônia historicamente fica acima ou abaixo da média anual — "
+        f"método-padrão da economia agrícola que cancela o efeito da inflação por construção. "
+        f"<b>(2) Variação cambial intra-safra</b> mostra, safra a safra, quanto o câmbio se moveu "
+        f"entre o mês de plantio e o mês de colheita — um sinal de risco, não simulação de hedge."
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ================================================================
+    # PARTE 1 — ÍNDICE SAZONAL (preço relativo à média móvel anual)
+    # ================================================================
+    st.markdown("### Índice sazonal — preço relativo à média anual")
+
+    # Para cada observação, calcula a média móvel centrada de 52 semanas (~1 ano).
+    # Índice sazonal = preço_t / MM52_t. Cancela inflação porque é razão dentro
+    # do mesmo regime de preços. Acima de 1,00 = mês historicamente premiado;
+    # abaixo de 1,00 = mês historicamente descontado.
+    serie_preco = df_sz["preco_saca"].copy()
+    mm52 = serie_preco.rolling(window=52, center=True, min_periods=26).mean()
+    df_sz["indice_sazonal"] = (serie_preco / mm52)
+    df_sz_idx = df_sz.dropna(subset=["indice_sazonal"])
+
+    sz_stats = df_sz_idx.groupby("mes")["indice_sazonal"].agg(["mean", "std", "count"]).reset_index()
+    sz_stats["mes_label"] = sz_stats["mes"].map(MESES_PT)
+    sz_stats["upper"] = sz_stats["mean"] + sz_stats["std"]
+    sz_stats["lower"] = sz_stats["mean"] - sz_stats["std"]
+    sz_stats["delta_pct"] = (sz_stats["mean"] - 1.0) * 100
+
+    melhor_mes = sz_stats.loc[sz_stats["mean"].idxmax()]
+    pior_mes   = sz_stats.loc[sz_stats["mean"].idxmin()]
+
+    fig_sz = go.Figure()
+
+    fig_sz.add_trace(go.Scatter(
+        x=list(sz_stats["mes_label"]) + list(sz_stats["mes_label"])[::-1],
+        y=list(sz_stats["upper"]) + list(sz_stats["lower"])[::-1],
+        fill="toself",
+        fillcolor="rgba(0, 210, 106, 0.10)",
+        line=dict(color="rgba(0,0,0,0)"),
+        hoverinfo="skip",
+        name="Dispersão (±1σ)",
+        showlegend=True,
+    ))
+
+    fig_sz.add_trace(go.Scatter(
+        x=sz_stats["mes_label"],
+        y=sz_stats["mean"],
+        mode="lines+markers",
+        line=dict(color="#00d26a", width=2.5),
+        marker=dict(size=9, color="#00d26a", line=dict(color="white", width=1.5)),
+        name="Índice sazonal médio",
+        customdata=sz_stats["delta_pct"],
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "Índice: %{y:.3f}<br>"
+            "vs média anual: %{customdata:+.1f}%<extra></extra>"
+        ),
+    ))
+
+    fig_sz.add_hline(
+        y=1.0, line_dash="dash", line_color="#ffbd45", line_width=1.5,
+        annotation_text="Média anual = 1,00",
+        annotation_position="top right",
+        annotation_font=dict(color="#ffbd45", size=11),
+    )
+
+    fig_sz.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font_color="white",
+        yaxis=dict(title="Índice sazonal (preço ÷ média móvel anual)", tickformat=".2f",
+                   gridcolor="#2b2f3e"),
+        xaxis=dict(title="", gridcolor="#2b2f3e"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin={"t": 40, "b": 0, "l": 0, "r": 0},
+        height=380,
+    )
+    st.plotly_chart(fig_sz, width='stretch')
+
+    delta_melhor_pct = (melhor_mes["mean"] - 1.0) * 100
+    delta_pior_pct   = (pior_mes["mean"] - 1.0) * 100
+    spread_pct       = (melhor_mes["mean"] / pior_mes["mean"] - 1.0) * 100
+
+    st.markdown(
+        f'<div class="context-box">'
+        f"<b>Leitura:</b> nos últimos {n_anos} anos ({periodo_sz_str}), "
+        f"<b>{melhor_mes['mes_label']}</b> foi o mês com maior preço relativo "
+        f"({delta_melhor_pct:+.1f}% vs. média anual em torno dele), "
+        f"e <b>{pior_mes['mes_label']}</b> foi o mês com menor preço relativo "
+        f"({delta_pior_pct:+.1f}%). "
+        f"O spread entre o melhor e o pior mês é de aproximadamente <b>{spread_pct:.1f}%</b>. "
+        f"O sinal sazonal não é determinístico — a banda sombreada (±1 desvio padrão) mostra "
+        f"que dentro do mesmo mês a dispersão entre safras é relevante. "
+        f"Use isto como contexto histórico, não como previsão."
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.caption(
+        f"Método: para cada observação semanal, calcula-se o índice = preço_efetivo ÷ "
+        f"média móvel centrada de 52 semanas. A média mensal desse índice cancela a "
+        f"tendência inflacionária por construção (razão entre dois valores no mesmo regime de preços) — "
+        f"é a abordagem-padrão da literatura de economia agrícola para sazonalidade de commodities. "
+        f"Janela: últimos {JANELA_ANOS_SZ} anos para refletir o regime produtivo atual de Rondônia "
+        f"(Cone Sul/Vilhena dominante, safrinha de milho consolidada). "
+        f"Fórmula do preço efetivo: (CBOT ÷ 100 + basis US$ {basis_usd:+.2f}/bu) × {_bt:.4f} bu/t × PTAX × 0,06. "
+        f"Fontes: CBOT via Yahoo Finance ({_ticker}); PTAX via Banco Central, SGS série 1."
+    )
+
+    # ================================================================
+    # PARTE 2 — VARIAÇÃO CAMBIAL INTRA-SAFRA (não é hedge real)
+    # ================================================================
+    st.markdown("---")
+    st.markdown("### Variação cambial entre plantio e colheita")
+
+    CICLO_CULTURA = {
+        "Soja":  {"mes_plantio": 9,  "mes_colheita": 2,
+                  "desc_plantio": "Setembro", "desc_colheita": "Fevereiro",
+                  "contexto": "plantio em setembro e colheita em fevereiro — ciclo padrão de Rondônia"},
+        "Milho": {"mes_plantio": 2,  "mes_colheita": 6,
+                  "desc_plantio": "Fevereiro", "desc_colheita": "Junho",
+                  "contexto": "safrinha semeada em fevereiro logo após a colheita da soja, colhida em junho"},
+    }
+    ciclo = CICLO_CULTURA[cultura_sel]
+    mes_plantio  = ciclo["mes_plantio"]
+    mes_colheita = ciclo["mes_colheita"]
+
+    st.markdown(
+        f'<div class="context-box" style="border-left-color:#ffbd45;">'
+        f"<b>Importante — esta análise NÃO simula hedge cambial real.</b> "
+        f"Hedge real (NDF, futuro de dólar B3) trava o <b>câmbio futuro (forward)</b>, que embute "
+        f"o diferencial de juros entre Selic e Fed Funds — historicamente positivo, ou seja, "
+        f"o forward fica acima do PTAX spot. O que esta seção mostra é mais simples: "
+        f"a <b>variação observada do PTAX entre o mês de plantio e o mês de colheita</b> de cada safra. "
+        f"É um indicador de magnitude do risco cambial intra-safra, não simulação de operação financeira. "
+        f"Para análise real de instrumentos de proteção, use cotações de NDF/futuro junto a uma mesa de hedge."
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.caption(
+        f"Contexto produtivo: a {cultura_sel.lower()} de Rondônia tem {ciclo['contexto']}. "
+        f"Como o grão é precificado em dólar e o produtor recebe em reais, o movimento do "
+        f"câmbio entre {ciclo['desc_plantio']} e {ciclo['desc_colheita']} altera diretamente "
+        f"a receita em reais da safra."
+    )
+
+    resultados_intra = []
+    for ano in anos_unicos:
+        ano_plantio = ano if mes_colheita > mes_plantio else ano - 1
+        df_plant = df_sz[(df_sz["ano"] == ano_plantio) & (df_sz["mes"] == mes_plantio)]
+        df_colh  = df_sz[(df_sz["ano"] == ano) & (df_sz["mes"] == mes_colheita)]
+        if df_plant.empty or df_colh.empty:
+            continue
+
+        ptax_plantio  = float(df_plant["Dolar_PTAX"].mean())
+        ptax_colheita = float(df_colh["Dolar_PTAX"].mean())
+        var_pct       = (ptax_colheita / ptax_plantio - 1.0) * 100
+
+        resultados_intra.append({
+            "ano_label": str(ano),
+            "ptax_plantio": ptax_plantio,
+            "ptax_colheita": ptax_colheita,
+            "var_pct": var_pct,
+        })
+
+    if resultados_intra:
+        df_h = pd.DataFrame(resultados_intra)
+        n_alta  = int((df_h["var_pct"] > 0).sum())
+        n_baixa = int((df_h["var_pct"] < 0).sum())
+        n_tot   = len(df_h)
+        pct_alta = n_alta / n_tot * 100 if n_tot > 0 else 0
+        var_media = df_h["var_pct"].mean()
+        var_abs_media = df_h["var_pct"].abs().mean()
+
+        # Barras: variação % do PTAX entre plantio e colheita
+        df_h["cor"] = df_h["var_pct"].apply(lambda v: "#00d26a" if v > 0 else "#ff4b4b")
+
+        fig_v = go.Figure()
+        fig_v.add_trace(go.Bar(
+            x=df_h["ano_label"],
+            y=df_h["var_pct"],
+            marker_color=df_h["cor"],
+            customdata=df_h[["ptax_plantio", "ptax_colheita"]].values,
+            hovertemplate=(
+                "<b>Safra %{x}</b><br>"
+                f"PTAX em {ciclo['desc_plantio']}: R$ %{{customdata[0]:.4f}}<br>"
+                f"PTAX em {ciclo['desc_colheita']}: R$ %{{customdata[1]:.4f}}<br>"
+                "Variação: <b>%{y:+.1f}%</b><extra></extra>"
+            ),
+            name="Variação PTAX intra-safra",
+            showlegend=False,
+        ))
+
+        fig_v.add_hline(y=0, line_color="white", line_width=1)
+
+        fig_v.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font_color="white",
+            yaxis=dict(title="Variação % do PTAX (colheita ÷ plantio − 1)",
+                       tickformat="+.1f", ticksuffix="%", gridcolor="#2b2f3e"),
+            xaxis=dict(title="Safra (ano da colheita)"),
+            margin={"t": 30, "b": 0, "l": 0, "r": 0},
+            height=360,
+            bargap=0.25,
+        )
+        st.plotly_chart(fig_v, width='stretch')
+
+        st.markdown(
+            f'<div class="context-box" style="border-left-color:#808495;">'
+            f"<b>Leitura:</b> em {n_alta} de {n_tot} safras analisadas ({pct_alta:.0f}%), "
+            f"o câmbio <b>subiu</b> entre {ciclo['desc_plantio']} e {ciclo['desc_colheita']} — "
+            f"quem manteve a receita em dólar (sem fixar câmbio antes) recebeu mais reais. "
+            f"Nas outras {n_baixa} safras, o câmbio caiu no período. "
+            f"A variação média (com sinal) foi de <b>{var_media:+.1f}%</b>; "
+            f"a variação absoluta média foi de <b>{var_abs_media:.1f}%</b>, "
+            f"que é o tamanho típico do risco cambial intra-safra para esta cultura. "
+            f"Este número justifica por que produtores com dívida ou custo fixo elevado "
+            f"buscam instrumentos de fixação cambial — não para ganhar em média, "
+            f"mas para reduzir variância e poder honrar compromissos."
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+        v1, v2, v3, v4 = st.columns(4)
+        v1.metric("Safras analisadas", f"{n_tot}",
+                  help=f"Anos com dados de PTAX em {ciclo['desc_plantio']} e {ciclo['desc_colheita']}.")
+        v2.metric("Câmbio subiu", f"{n_alta} safras ({pct_alta:.0f}%)",
+                  help="Anos em que o PTAX médio do mês de colheita foi maior que o do mês de plantio.")
+        v3.metric("Variação média", f"{var_media:+.1f}%",
+                  help="Média (com sinal) das variações % do PTAX entre plantio e colheita.")
+        v4.metric("Variação típica", f"±{var_abs_media:.1f}%",
+                  help="Média absoluta das variações — magnitude do risco cambial por safra.")
+
+        st.caption(
+            f"Método: variação % = PTAX médio em {ciclo['desc_colheita']} ÷ PTAX médio em "
+            f"{ciclo['desc_plantio']} − 1, calculada para cada safra. "
+            f"O preço CBOT não entra neste gráfico — a análise isola exclusivamente o componente cambial. "
+            f"Janela: últimos {JANELA_ANOS_SZ} anos. "
+            f"Fontes: PTAX — Banco Central, SGS série 1; CBOT — Yahoo Finance."
+        )
+    else:
+        st.info("Dados históricos insuficientes para o ciclo desta cultura na janela selecionada. "
+                "Execute `python coleta_mercado.py` para atualizar.")
 
 # --- RODAPÉ ---
 st.markdown("---")

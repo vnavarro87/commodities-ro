@@ -1,16 +1,13 @@
 """
-Coleta de cotações de mercado para o projeto Commodities de RO.
+Coleta de cotações de mercado para o projeto Soja e Milho de Rondônia.
 
 Fontes:
-- Soja (CBOT, USD/bushel): yfinance ticker ZS=F
-- Milho (CBOT, USD/bushel): yfinance ticker ZC=F
-- Dólar PTAX (R$/USD): API oficial do Banco Central do Brasil (SGS série 1)
+- Soja (CBOT, USD/bushel): yfinance ticker ZS=F — histórico máximo disponível
+- Milho (CBOT, USD/bushel): yfinance ticker ZC=F — histórico máximo disponível
+- Dólar PTAX (R$/USD): API oficial do Banco Central do Brasil (SGS série 1) desde 2000
+- Fertilizantes (IPA-OG): BCB SGS série 7456 — histórico máximo disponível
 
-Salva um arquivo parquet com histórico semanal dos últimos 5 anos.
-
-Boi Gordo: indisponível em V1. APIs públicas brasileiras (IPEADATA série
-BM_BOI, BCB SGS) estão deprecadas; CEPEA não expõe API estável. Será
-incluído em V2 com pipeline dedicado.
+Salva parquet com histórico semanal completo (máximo disponível por fonte).
 """
 import os
 from datetime import datetime, timedelta
@@ -21,8 +18,9 @@ import requests
 PASTA = os.path.dirname(__file__)
 ARQUIVO_SAIDA = os.path.join(PASTA, "cotacoes_historico.parquet")
 
-PERIODO = "5y"
+PERIODO = "max"   # máximo disponível no yfinance para CBOT
 INTERVALO = "1wk"
+PTAX_INICIO = datetime(2000, 1, 1)  # PTAX BCB disponível desde 1999
 
 TICKERS_YF = {
     "Soja_USD_bushel": "ZS=F",
@@ -73,10 +71,11 @@ def _buscar_ptax_chunk(inicio, fim):
 
 
 def coletar_ptax_bcb():
-    """API do BCB tem timeout em janelas longas. Fragmenta em chunks anuais."""
+    """API do BCB tem timeout em janelas longas. Fragmenta em chunks anuais.
+    Coleta desde PTAX_INICIO (default 2000) até hoje."""
     print("Coletando Dolar PTAX (BCB SGS serie 1)...")
     fim_total = datetime.now()
-    inicio_total = fim_total - timedelta(days=5 * 365 + 30)
+    inicio_total = PTAX_INICIO
 
     todos = []
     cursor = inicio_total
@@ -109,7 +108,7 @@ def coletar_fertilizante_bcb():
     """
     print("Coletando IPA-OG Fertilizantes (BCB SGS 7456)...")
     fim = datetime.now()
-    inicio = fim - timedelta(days=5 * 365 + 60)
+    inicio = datetime(1995, 1, 1)  # série disponível desde meados dos anos 90
     params = {
         "formato": "json",
         "dataInicial": inicio.strftime("%d/%m/%Y"),
