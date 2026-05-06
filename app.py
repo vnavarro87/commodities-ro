@@ -798,8 +798,10 @@ with tab2:
             unsafe_allow_html=True,
         )
 
-    df_mapa = df_prod_filt.copy()
-    # Cada município usa seu próprio basis (uniforme se basis_geo desligado, variável se ligado)
+    # Inclui TODOS os municípios de RO (não só produtores) para definir contorno do estado.
+    # Municípios sem produção da cultura selecionada ficam com Receita = 0
+    # e aparecem em cinza-escuro com borda branca — visualmente integrados a RO.
+    df_mapa = df_prod.copy()
     df_mapa["preco_efetivo_usd"] = (
         preco_sim_cbot_usd
         + df_mapa["Municipio"].map(basis_municipios).fillna(basis_usd)
@@ -810,6 +812,16 @@ with tab2:
         * df_mapa["preco_efetivo_usd"]
         * dolar_sim
         / 1e6
+    ).fillna(0)
+    df_mapa["produz"] = df_mapa[cfg["qtd_col"]] > 0
+    # Hover diferenciado: produtores mostram receita; demais mostram "sem produção"
+    df_mapa["hover_label"] = df_mapa.apply(
+        lambda r: (
+            f"<b>{r['Municipio']}</b><br>Receita estimada: R$ {r['Receita_BRL_Mi']:,.1f} Mi"
+            if r["produz"]
+            else f"<b>{r['Municipio']}</b><br>Sem produção registrada de {cultura_sel.lower()}"
+        ),
+        axis=1,
     )
 
     fig_mapa = px.choropleth_map(
@@ -819,11 +831,14 @@ with tab2:
         color_continuous_scale="Viridis",
         map_style="carto-darkmatter", zoom=5.6,
         center={"lat": -10.9, "lon": -62.8},
-        opacity=0.7, hover_name="Municipio",
+        opacity=0.75, hover_name="Municipio",
         labels={"Receita_BRL_Mi": "Receita (R$ Mi)"},
+        custom_data=["hover_label"],
     )
     fig_mapa.update_traces(
-        hovertemplate="<b>%{hovertext}</b><br>Receita estimada: R$ %{z:,.1f} Mi<extra></extra>"
+        hovertemplate="%{customdata[0]}<extra></extra>",
+        marker_line_color="rgba(255,255,255,0.4)",
+        marker_line_width=0.6,
     )
     fig_mapa.update_layout(
         margin={"r": 0, "t": 0, "l": 0, "b": 0},
