@@ -798,10 +798,14 @@ with tab2:
             unsafe_allow_html=True,
         )
 
-    # Inclui TODOS os municípios de RO (não só produtores) para definir contorno do estado.
-    # Municípios sem produção da cultura selecionada ficam com Receita = 0
-    # e aparecem em cinza-escuro com borda branca — visualmente integrados a RO.
-    df_mapa = df_prod.copy()
+    # Camada 1: TODOS os municípios em cinza-escuro (silhueta do estado)
+    # Camada 2: apenas produtores com escala Viridis sobreposta
+    df_todos = df_prod.copy()
+    df_todos["hover_label_off"] = df_todos["Municipio"].apply(
+        lambda m: f"<b>{m}</b><br>Sem produção registrada de {cultura_sel.lower()}"
+    )
+
+    df_mapa = df_prod_filt.copy()
     df_mapa["preco_efetivo_usd"] = (
         preco_sim_cbot_usd
         + df_mapa["Municipio"].map(basis_municipios).fillna(basis_usd)
@@ -812,39 +816,46 @@ with tab2:
         * df_mapa["preco_efetivo_usd"]
         * dolar_sim
         / 1e6
-    ).fillna(0)
-    df_mapa["produz"] = df_mapa[cfg["qtd_col"]] > 0
-    # Hover diferenciado: produtores mostram receita; demais mostram "sem produção"
-    df_mapa["hover_label"] = df_mapa.apply(
-        lambda r: (
-            f"<b>{r['Municipio']}</b><br>Receita estimada: R$ {r['Receita_BRL_Mi']:,.1f} Mi"
-            if r["produz"]
-            else f"<b>{r['Municipio']}</b><br>Sem produção registrada de {cultura_sel.lower()}"
-        ),
-        axis=1,
     )
 
-    fig_mapa = px.choropleth_map(
-        df_mapa, geojson=geojson, locations="Municipio",
+    # Camada de fundo: silhueta de RO em cinza-escuro neutro
+    fig_mapa = go.Figure()
+    fig_mapa.add_trace(go.Choroplethmap(
+        geojson=geojson,
+        locations=df_todos["Municipio"],
         featureidkey="properties.name",
-        color="Receita_BRL_Mi",
-        color_continuous_scale="Viridis",
-        map_style="carto-darkmatter", zoom=5.6,
-        center={"lat": -10.9, "lon": -62.8},
-        opacity=0.75, hover_name="Municipio",
-        labels={"Receita_BRL_Mi": "Receita (R$ Mi)"},
-        custom_data=["hover_label"],
-    )
-    fig_mapa.update_traces(
-        hovertemplate="%{customdata[0]}<extra></extra>",
-        marker_line_color="rgba(255,255,255,0.4)",
-        marker_line_width=0.6,
-    )
+        z=[1] * len(df_todos),
+        colorscale=[[0, "#3a3f4f"], [1, "#3a3f4f"]],
+        showscale=False,
+        marker_line_color="rgba(255,255,255,0.5)",
+        marker_line_width=0.7,
+        marker_opacity=0.85,
+        customdata=df_todos["hover_label_off"],
+        hovertemplate="%{customdata}<extra></extra>",
+        name="",
+    ))
+    # Camada dos produtores (Viridis)
+    fig_mapa.add_trace(go.Choroplethmap(
+        geojson=geojson,
+        locations=df_mapa["Municipio"],
+        featureidkey="properties.name",
+        z=df_mapa["Receita_BRL_Mi"],
+        colorscale="Viridis",
+        marker_line_color="rgba(255,255,255,0.6)",
+        marker_line_width=0.7,
+        marker_opacity=0.85,
+        customdata=df_mapa["Municipio"],
+        hovertemplate="<b>%{customdata}</b><br>Receita estimada: R$ %{z:,.1f} Mi<extra></extra>",
+        colorbar=dict(title="Receita (R$ Mi)", tickformat=",.1f"),
+        name="",
+    ))
     fig_mapa.update_layout(
+        map_style="carto-darkmatter",
+        map_zoom=5.6,
+        map_center={"lat": -10.9, "lon": -62.8},
         margin={"r": 0, "t": 0, "l": 0, "b": 0},
         paper_bgcolor="rgba(0,0,0,0)",
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
-        coloraxis_colorbar=dict(tickformat=",.1f"),
     )
     st.plotly_chart(fig_mapa, width='stretch', config={'displayModeBar': False})
 
