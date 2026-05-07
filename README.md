@@ -84,6 +84,7 @@ soja_milho_ro/
 ├── cotacoes_historico.parquet   # Histórico de cotações (cache local)
 ├── METODOLOGIA.md               # Fontes, fórmulas e limitações
 ├── BUSINESS_CASE.md             # Narrativa do projeto e roadmap
+├── PRESENTATION.md              # Walkthrough das 5 abas + catálogo de 9 insights
 ├── requirements.txt
 └── README.md
 ```
@@ -102,7 +103,7 @@ soja_milho_ro/
 
 - **Análise de variação cambial intra-safra ≠ simulação de hedge real.** A Aba 5 mostra a magnitude da variação do PTAX entre plantio e colheita de cada safra. Hedge cambial real (NDF, futuro de dólar B3) trava o forward, que embute cupom cambial — não está modelado aqui. A análise serve como indicador de risco, não como simulador de operação financeira.
 
-Detalhamento completo em [METODOLOGIA.md](METODOLOGIA.md).
+Detalhamento completo em [METODOLOGIA.md](METODOLOGIA.md). Walkthrough das 5 abas e catálogo de insights em [PRESENTATION.md](PRESENTATION.md).
 
 ## Sobre
 
