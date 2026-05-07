@@ -674,30 +674,52 @@ with tab2:
             ),
         )
 
-        st.markdown("**Cenário de mercado**")
+        # Cenário de mercado — sliders com reset ao valor atual via session_state.
+        # Necessário porque, depois de mexer nos sliders, voltar manualmente ao valor
+        # exato de mercado é impreciso (incremento de 0,05 pode não atingir o valor real).
+        _key_preco_sim = f"preco_sim_{cultura_sel}"
+        _key_dolar_sim = f"dolar_sim_{cultura_sel}"
+        _preco_atual_usd = float(preco_atual) / 100
+        _dolar_atual_val = float(dolar_atual)
+
+        col_titulo, col_reset = st.columns([3, 2])
+        with col_titulo:
+            st.markdown("**Cenário de mercado**")
+        with col_reset:
+            if st.button(
+                "↺ Voltar ao mercado atual",
+                key=f"reset_{cultura_sel}",
+                help=f"Restaura cotação de hoje: US$ {_preco_atual_usd:.2f}/bu × R$ {_dolar_atual_val:.2f}",
+                use_container_width=True,
+            ):
+                st.session_state[_key_preco_sim] = _preco_atual_usd
+                st.session_state[_key_dolar_sim] = _dolar_atual_val
+                st.rerun()
+
         preco_sim_cbot_usd = st.slider(
-            f"Preço {cultura_sel} (Chicago)",
+            f"Preço {cultura_sel} (Chicago) · atual: US$ {_preco_atual_usd:.2f}/bu",
             min_value=float(serie_commodity.min() * 0.7) / 100,
             max_value=float(serie_commodity.max() * 1.3) / 100,
-            value=float(preco_atual) / 100,
+            value=_preco_atual_usd,
             step=0.05,
             format="US$ %.2f/bu",
+            key=_key_preco_sim,
             help=(
                 "Cotação internacional na bolsa de Chicago. "
-                "Mexa para simular o que aconteceria se o preço subisse ou caísse "
-                "em relação ao valor de hoje."
+                "Mexa para simular cenário; clique em ↺ para voltar ao valor de hoje."
             ),
         )
         dolar_sim = st.slider(
-            "Dólar comercial",
+            f"Dólar comercial · atual: R$ {_dolar_atual_val:.2f}",
             min_value=float(serie_dolar.min() * 0.85),
             max_value=float(serie_dolar.max() * 1.15),
-            value=float(dolar_atual),
+            value=_dolar_atual_val,
             step=0.05,
             format="R$ %.2f",
+            key=_key_dolar_sim,
             help=(
                 "Cotação do dólar usada no cenário. "
-                "Mexa para simular: dólar mais alto significa mais reais por dólar de venda."
+                "Dólar mais alto = mais reais por dólar de venda. ↺ volta ao valor de hoje."
             ),
         )
         # Preço efetivo — município ou média ponderada do estado
@@ -1210,11 +1232,13 @@ with tab4:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font_color="white",
-        xaxis_title=f"{cultura_sel} — preço em Chicago (US$/bu)",
-        yaxis_title="Câmbio (R$/US$)",
-        legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="center", x=0.5),
-        height=500,
-        margin={"t": 10, "b": 60, "l": 0, "r": 0},
+        xaxis=dict(
+            title=dict(text=f"{cultura_sel} — preço em Chicago (US$/bu)", standoff=18),
+        ),
+        yaxis=dict(title=dict(text="Câmbio (R$/US$)", standoff=10)),
+        legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="center", x=0.5),
+        height=540,
+        margin={"t": 10, "b": 110, "l": 0, "r": 0},
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
     st.plotly_chart(fig_scatter, width='stretch', config={'displayModeBar': False})
@@ -1429,16 +1453,16 @@ with tab4:
     if cbot_hist_min is not None and dolar_hist_min is not None:
         calib_str = (
             f"Eixos calibrados pela amplitude histórica observada (últimos 10 anos): "
-            f"CBOT min/max US$ {cbot_hist_min:.2f}/bu / US$ {cbot_hist_max:.2f}/bu · "
-            f"PTAX min/max R$ {dolar_hist_min:.2f} / R$ {dolar_hist_max:.2f} "
+            f"CBOT min/max US\\$ {cbot_hist_min:.2f}/bu a US\\$ {cbot_hist_max:.2f}/bu · "
+            f"PTAX min/max R\\$ {dolar_hist_min:.2f} a R\\$ {dolar_hist_max:.2f} "
             f"(dados: Yahoo Finance + BCB SGS 1). "
         )
     else:
         calib_str = ""
     st.caption(
-        f"Fórmula: margem (R$/ha) = (CBOT US$/bu + basis US$/bu) × {bushels_t:.4f} bu/t × "
-        f"{prod_t_ha_ms*1000:,.0f} kg/ha × dólar − custo R$ {custo_ha_ms:,.0f}/ha. "
-        f"Basis aplicado: US$ {basis_ms:+.2f}/bu. "
+        f"Fórmula: margem (R\\$/ha) = (CBOT US\\$/bu + basis US\\$/bu) × {bushels_t:.4f} bu/t × "
+        f"{prod_t_ha_ms*1000:,.0f} kg/ha × dólar − custo R\\$ {custo_ha_ms:,.0f}/ha. "
+        f"Basis aplicado: US\\$ {basis_ms:+.2f}/bu. "
         f"{calib_str}"
         f"Tabulação determinística — não inclui basis sazonal, volatilidade intra-mês "
         f"nem é recomendação operacional de hedge ou comercialização."
