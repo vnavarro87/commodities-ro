@@ -134,11 +134,18 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 
 
 def _reset_keys_callback(*keys):
-    """Remove keys do session_state. Usado como on_click de botão de reset.
-    on_click executa antes do rerun, garantindo que widgets re-renderizem
-    com value= padrão em vez de manter valor cacheado pelo session_state."""
+    """Remove keys do session_state. Mantido por compatibilidade —
+    a estratégia atual usa contador de reset (key dinâmica) por ser mais robusta."""
     for k in keys:
         st.session_state.pop(k, None)
+
+
+def _bump_reset_counter(counter_key):
+    """Incrementa contador de reset. Usado como on_click — força os widgets
+    associados a re-criarem com nova key, descartando estado anterior.
+    É a forma mais robusta de resetar um slider no Streamlit, porque elimina
+    qualquer cache interno que value= não consegue sobrescrever."""
+    st.session_state[counter_key] = st.session_state.get(counter_key, 0) + 1
 
 
 # Hubs de transbordo para escoamento de soja/milho do Centro-Oeste/Norte.
@@ -682,16 +689,17 @@ with tab2:
             ),
         )
 
-        # Cenário de mercado — sliders com reset ao valor atual via session_state.
-        # Necessário porque, depois de mexer nos sliders, voltar manualmente ao valor
-        # exato de mercado é impreciso (incremento de 0,05 pode não atingir o valor real).
-        _key_preco_sim = f"preco_sim_{cultura_sel}"
-        _key_dolar_sim = f"dolar_sim_{cultura_sel}"
+        # Cenário de mercado — sliders com reset via contador (key dinâmica).
+        # Cada incremento do contador troca a key do slider, forçando Streamlit a
+        # recriar o widget do zero com value= padrão. É a forma mais robusta —
+        # apenas pop()+set não funciona porque Streamlit mantém cache interno.
+        _counter_mkt = f"reset_counter_mkt_{cultura_sel}"
+        _n_mkt = st.session_state.get(_counter_mkt, 0)
+        _key_preco_sim = f"preco_sim_{cultura_sel}_{_n_mkt}"
+        _key_dolar_sim = f"dolar_sim_{cultura_sel}_{_n_mkt}"
         _preco_atual_usd = float(preco_atual) / 100
         _dolar_atual_val = float(dolar_atual)
 
-        # Botão de reset minimalista alinhado à direita do título.
-        # Usa pop() em vez de set para evitar conflito com value= do slider.
         _ttl_col, _btn_col = st.columns([3, 2])
         with _ttl_col:
             st.markdown("**Cenário de mercado**")
@@ -707,13 +715,13 @@ with tab2:
             if _preco_alterado or _dolar_alterado:
                 st.button(
                     "↺ resetar",
-                    key=f"reset_mkt_{cultura_sel}",
+                    key=f"reset_mkt_btn_{cultura_sel}_{_n_mkt}",
                     help=(
                         f"Volta aos valores de mercado: "
                         f"US$ {_preco_atual_usd:.2f}/bu × R$ {_dolar_atual_val:.2f}"
                     ),
-                    on_click=_reset_keys_callback,
-                    args=(_key_preco_sim, _key_dolar_sim),
+                    on_click=_bump_reset_counter,
+                    args=(_counter_mkt,),
                 )
 
         preco_sim_cbot_usd = st.slider(
@@ -959,11 +967,12 @@ with tab3:
             unsafe_allow_html=True,
         )
 
-    _key_custo_rc = f"custo_rc_{cultura_sel}"
-    _key_choque_rc = f"choque_rc_{cultura_sel}"
+    _counter_rc = f"reset_counter_rc_{cultura_sel}"
+    _n_rc = st.session_state.get(_counter_rc, 0)
+    _key_custo_rc = f"custo_rc_{cultura_sel}_{_n_rc}"
+    _key_choque_rc = f"choque_rc_{cultura_sel}_{_n_rc}"
     _custo_default_rc = CUSTO_HA_DEFAULT[cultura_sel]
 
-    # Linha de reset minimalista alinhada à direita
     _custo_alt = (
         _key_custo_rc in st.session_state
         and abs(st.session_state[_key_custo_rc] - _custo_default_rc) > 0.5
@@ -979,10 +988,10 @@ with tab3:
         with _btn_rc:
             st.button(
                 "↺ resetar",
-                key=f"reset_rc_{cultura_sel}",
+                key=f"reset_rc_btn_{cultura_sel}_{_n_rc}",
                 help=f"Volta a custo CONAB R$ {_custo_default_rc:,.0f}/ha e choque de frete = 0.",
-                on_click=_reset_keys_callback,
-                args=(_key_custo_rc, _key_choque_rc),
+                on_click=_bump_reset_counter,
+                args=(_counter_rc,),
             )
     else:
         st.markdown("**Custo e cenário de estresse**")
@@ -1209,7 +1218,9 @@ with tab4:
             mun_ms = None
             st.caption("Média ponderada pela produção de todos os municípios produtores de Rondônia.")
     with col_ms3:
-        _key_custo_ms = f"custo_ms_{cultura_sel}"
+        _counter_ms = f"reset_counter_ms_{cultura_sel}"
+        _n_ms = st.session_state.get(_counter_ms, 0)
+        _key_custo_ms = f"custo_ms_{cultura_sel}_{_n_ms}"
         _custo_default_ms = CUSTO_HA_DEFAULT[cultura_sel]
         _custo_ms_alt = (
             _key_custo_ms in st.session_state
@@ -1230,10 +1241,10 @@ with tab4:
                 st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)  # alinha vertical
                 st.button(
                     "↺",
-                    key=f"reset_ms_{cultura_sel}",
+                    key=f"reset_ms_btn_{cultura_sel}_{_n_ms}",
                     help=f"Volta a R$ {_custo_default_ms:,.0f}/ha (CONAB)",
-                    on_click=_reset_keys_callback,
-                    args=(_key_custo_ms,),
+                    on_click=_bump_reset_counter,
+                    args=(_counter_ms,),
                 )
         else:
             custo_ha_ms = st.slider(
