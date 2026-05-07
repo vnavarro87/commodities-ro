@@ -682,19 +682,33 @@ with tab2:
         _preco_atual_usd = float(preco_atual) / 100
         _dolar_atual_val = float(dolar_atual)
 
-        col_titulo, col_reset = st.columns([3, 2])
-        with col_titulo:
-            st.markdown("**Cenário de mercado**")
-        with col_reset:
-            if st.button(
-                "↺ Voltar ao mercado atual",
-                key=f"reset_{cultura_sel}",
-                help=f"Restaura cotação de hoje: US$ {_preco_atual_usd:.2f}/bu × R$ {_dolar_atual_val:.2f}",
-                use_container_width=True,
-            ):
-                st.session_state[_key_preco_sim] = _preco_atual_usd
-                st.session_state[_key_dolar_sim] = _dolar_atual_val
-                st.rerun()
+        st.markdown("**Cenário de mercado**")
+
+        # Indica se sliders estão em valores diferentes do mercado atual
+        _preco_alterado = (
+            _key_preco_sim in st.session_state
+            and abs(st.session_state[_key_preco_sim] - _preco_atual_usd) > 0.01
+        )
+        _dolar_alterado = (
+            _key_dolar_sim in st.session_state
+            and abs(st.session_state[_key_dolar_sim] - _dolar_atual_val) > 0.01
+        )
+        _alterado = _preco_alterado or _dolar_alterado
+
+        if st.button(
+            (
+                "↺ Voltar ao mercado atual "
+                f"(US$ {_preco_atual_usd:.2f} × R$ {_dolar_atual_val:.2f})"
+            ),
+            key=f"reset_{cultura_sel}",
+            help="Restaura preço CBOT e câmbio aos valores de mercado mais recentes.",
+            type="primary" if _alterado else "secondary",
+            width='stretch',
+            disabled=not _alterado,
+        ):
+            st.session_state[_key_preco_sim] = _preco_atual_usd
+            st.session_state[_key_dolar_sim] = _dolar_atual_val
+            st.rerun()
 
         preco_sim_cbot_usd = st.slider(
             f"Preço {cultura_sel} (Chicago) · atual: US$ {_preco_atual_usd:.2f}/bu",
