@@ -499,7 +499,7 @@ with tab1:
 
     st.caption(
         f"Eixo esquerdo (verde): preço negociado na Bolsa de Chicago em centavos de dólar por bushel. "
-        f"Eixo direito (amarelo): câmbio oficial PTAX (R$/US$) — Banco Central do Brasil, SGS série 1. "
+        f"Eixo direito (amarelo): câmbio oficial PTAX (R\\$/US\\$) — Banco Central do Brasil, SGS série 1. "
         f"Período: {periodo_str}. "
         f"Valores nominais — sem ajuste por inflação (CPI americano para CBOT; IPCA para câmbio). "
         f"Esta série serve como referência de contexto de mercado. "
@@ -869,11 +869,11 @@ with tab2:
         st.subheader("Receita estimada por município — cenário simulado")
         st.markdown(
             f'<div class="disclaimer">'
-            f"Cenário aplicado: Chicago US$ {preco_sim_cbot_usd:.2f}/bu "
+            f"Cenário aplicado: Chicago US\\$ {preco_sim_cbot_usd:.2f}/bu "
             f"({'acima' if preco_sim_cbot_usd > preco_atual / 100 else 'abaixo'} do atual "
-            f"US$ {preco_atual / 100:.2f}) · "
-            f"Dólar R$ {dolar_sim:.2f} "
-            f"({'acima' if dolar_sim > dolar_atual else 'abaixo'} do atual R$ {dolar_atual:.2f})"
+            f"US\\$ {preco_atual / 100:.2f}) · "
+            f"Dólar R\\$ {dolar_sim:.2f} "
+            f"({'acima' if dolar_sim > dolar_atual else 'abaixo'} do atual R\\$ {dolar_atual:.2f})"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -967,8 +967,8 @@ with tab2:
 
     st.caption(
         f"O que olhar aqui: cada município pintado pela receita estimada no cenário simulado acima. "
-        f"Cores mais claras = receita maior. **Cenário aplicado:** Chicago US$ {preco_sim_cbot_usd:.2f}/bu, "
-        f"{basis_label}, dólar R$ {dolar_sim:.2f}. "
+        f"Cores mais claras = receita maior. **Cenário aplicado:** Chicago US\\$ {preco_sim_cbot_usd:.2f}/bu, "
+        f"{basis_label}, dólar R\\$ {dolar_sim:.2f}. "
         f"Receita não inclui custos — para ver margem, ver aba *Risco Cambial*."
     )
     if concentracao_caption:
@@ -988,7 +988,7 @@ with tab3:
         st.markdown(
             '<div class="disclaimer">'
             "<b>Milho 2ª safra (safrinha):</b> o custo de referência abaixo "
-            "(R$4.180/ha, Custo Operacional Total — COT — CONAB 2024/25) inclui arrendamento da terra "
+            "(R\\$ 4.180/ha, Custo Operacional Total — COT — CONAB 2024/25) inclui arrendamento da terra "
             "e preparo de solo que, na prática, já foram pagos pela soja cultivada antes no mesmo campo. "
             "A decisão de plantar a safrinha envolve apenas os custos específicos da 2ª safra — "
             "sementes, fertilizantes, defensivos e operações mecanizadas próprias do milho. "
@@ -1199,21 +1199,21 @@ with tab3:
         unsafe_allow_html=True,
     )
 
-    custo_str = f"R$ {custo_ha:,.0f}/ha"
+    custo_str = f"R\\$ {custo_ha:,.0f}/ha"
     if choque_frete > 0:
-        custo_str += f" + choque de frete R$ {choque_frete:,.0f}/ha = R$ {custo_total_ha:,.0f}/ha"
+        custo_str += f" + choque de frete R\\$ {choque_frete:,.0f}/ha = R\\$ {custo_total_ha:,.0f}/ha"
 
     basis_caption = (
-        f"Deságio: variável por município (base US$ {basis_usd:+.2f}, ajuste por distância ao terminal)"
+        f"Deságio: variável por município (base US\\$ {basis_usd:+.2f}, ajuste por distância ao terminal)"
         if basis_geo
-        else f"Deságio: US$ {basis_usd:+.2f}/bu (uniforme) · Preço ao produtor: US$ {preco_efetivo_usd:.2f}/bu"
+        else f"Deságio: US\\$ {basis_usd:+.2f}/bu (uniforme) · Preço ao produtor: US\\$ {preco_efetivo_usd:.2f}/bu"
     )
     st.caption(
         f"Câmbio mínimo = custo total do município ÷ receita esperada em dólares (preço Chicago + deságio). "
         f"Verde: município com câmbio mínimo abaixo do câmbio atual (margem positiva). "
         f"Vermelho: câmbio mínimo acima do câmbio atual (prejuízo no cenário atual). "
         f"**Perfil aplicado:** {perfil_label} · "
-        f"Custo: {custo_str} · Chicago: US$ {preco_cbot_usd:.2f}/bu · {basis_caption}."
+        f"Custo: {custo_str} · Chicago: US\\$ {preco_cbot_usd:.2f}/bu · {basis_caption}."
     )
 
 # --- ABA 4: RISCO HISTÓRICO ---
@@ -1242,7 +1242,7 @@ with tab4:
         st.markdown(
             '<div class="disclaimer">'
             "<b>Milho 2ª safra (safrinha):</b> o custo de referência abaixo "
-            "(R$4.180/ha, Custo Operacional Total — COT — CONAB 2024/25) inclui arrendamento da terra "
+            "(R\\$ 4.180/ha, Custo Operacional Total — COT — CONAB 2024/25) inclui arrendamento da terra "
             "e preparo de solo que, na prática, já foram pagos pela soja cultivada antes no mesmo campo. "
             "A decisão de plantar a safrinha envolve apenas os custos específicos da 2ª safra — "
             "sementes, fertilizantes, defensivos e operações mecanizadas próprias do milho. "
@@ -1489,13 +1489,13 @@ with tab4:
     st.subheader("Matriz de Sensibilidade — Câmbio × Cotação Chicago")
     st.markdown(
         '<div class="context-box">'
-        f"<b>O que mostra:</b> margem em R$/ha para cada combinação de câmbio (linhas) e "
+        f"<b>O que mostra:</b> margem em R\\$/ha para cada combinação de câmbio (linhas) e "
         f"cotação CBOT (colunas), mantendo fixos os parâmetros configurados acima "
         f"(custo, basis, produtividade). "
         f"<span style='color:#00d26a;font-weight:600'>Verde</span> = margem positiva; "
         f"<span style='color:#ff4b4b;font-weight:600'>vermelho</span> = margem negativa. "
         f"Borda branca destaca a célula mais próxima do <b>cenário atual</b> "
-        f"(R$ {dolar_atual:.2f} × US$ {preco_cbot_usd:.2f}/bu)."
+        f"(R\\$ {dolar_atual:.2f} × US\\$ {preco_cbot_usd:.2f}/bu)."
         '</div>',
         unsafe_allow_html=True,
     )
