@@ -665,64 +665,62 @@ with tab2:
             mun_sim = None
             st.caption("Agregado de todos os municípios produtores de Rondônia.")
 
-        # Perfil do produtor — com reset opcional ao default 100%
-        _ttl_perf, _btn_perf = st.columns([3, 2])
-        with _ttl_perf:
-            st.markdown("**Perfil do produtor**")
+        # Perfil do produtor — botão ↺ pequeno ao lado, espaço sempre reservado
+        st.markdown("**Perfil do produtor**")
+        _slr_perf, _btn_perf = st.columns([5, 1])
+        with _slr_perf:
+            perfil_pct = st.slider(
+                "Produtividade vs. média municipal",
+                min_value=60, max_value=140, value=100, step=10,
+                format="%d%%", key=_perfil_key,
+                help="100% = produtor médio. 80% = abaixo da média. 120% = acima da média.",
+            )
         with _btn_perf:
-            _perfil_atual = st.session_state.get(_perfil_key, 100)
-            if _perfil_atual != 100:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if perfil_pct != 100:
                 st.button(
-                    "↺ resetar",
+                    "↺",
                     key=f"reset_perfil_btn_{_n_perfil}",
                     help="Volta a 100% (produtor médio do município).",
                     on_click=_bump_reset_counter,
                     args=(_counter_perfil,),
                 )
-
-        perfil_pct = st.slider(
-            "Produtividade vs. média municipal",
-            min_value=60, max_value=140, value=100, step=10,
-            format="%d%%", key=_perfil_key,
-            help="100% = produtor médio do município. 80% = abaixo da média típica. 120% = acima da média.",
-        )
         perfil_label = (
             "Médio" if perfil_pct == 100
             else f"{'Acima' if perfil_pct > 100 else 'Abaixo'} da média ({perfil_pct}%)"
         )
         fator = perfil_pct / 100
 
-        # Deságio — com reset opcional ao default da fonte (USDA/CONAB/ABIOVE)
+        # Deságio — botão ↺ pequeno ao lado, espaço sempre reservado
         _basis_default = BASIS_DEFAULT_USD[cultura_sel]
-        _ttl_basis, _btn_basis = st.columns([3, 2])
-        with _ttl_basis:
-            st.markdown("**Deságio ao produtor**")
+        st.markdown("**Deságio ao produtor**")
+        st.caption(
+            "Diferença entre o preço de Chicago e o que o produtor recebe na fazenda — "
+            "inclui frete, qualidade e prazo. Negativo é o normal."
+        )
+        _slr_basis, _btn_basis = st.columns([5, 1])
+        with _slr_basis:
+            basis_usd = st.slider(
+                f"Deságio — {cultura_sel}",
+                min_value=-3.0, max_value=0.5,
+                value=_basis_default, step=0.05,
+                format="US$ %+.2f/bu", key=_basis_key,
+                help=(
+                    "Mais negativo = produtor recebe ainda menos que Chicago. "
+                    f"Referência RO: US$ {_basis_default:+.2f}/bu — "
+                    "média 2023–25 (USDA GAIN, CONAB Logística, ABIOVE)."
+                ),
+            )
         with _btn_basis:
-            _basis_atual = st.session_state.get(_basis_key, _basis_default)
-            if abs(_basis_atual - _basis_default) > 0.01:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if abs(basis_usd - _basis_default) > 0.01:
                 st.button(
-                    "↺ resetar",
+                    "↺",
                     key=f"reset_basis_btn_{cultura_sel}_{_n_basis}",
                     help=f"Volta a US$ {_basis_default:+.2f}/bu (referência setorial 2023–25).",
                     on_click=_bump_reset_counter,
                     args=(_counter_basis,),
                 )
-        st.caption(
-            "Diferença entre o preço de Chicago e o que o produtor recebe na fazenda — "
-            "inclui frete, qualidade e prazo. Negativo é o normal."
-        )
-        basis_usd = st.slider(
-            f"Deságio — {cultura_sel}",
-            min_value=-3.0, max_value=0.5,
-            value=_basis_default, step=0.05,
-            format="US$ %+.2f/bu", key=_basis_key,
-            help=(
-                "Mais negativo = produtor recebe ainda menos que Chicago. "
-                "Menos negativo = logística mais barata ou prêmio de qualidade. "
-                f"Referência RO: US$ {_basis_default:+.2f}/bu — "
-                "média 2023–25 (USDA GAIN, CONAB Logística, ABIOVE)."
-            ),
-        )
 
         # Cenário de mercado — CBOT e Dólar com reset INDEPENDENTE.
         # Cada slider tem seu próprio counter, então o usuário pode mexer em ambos
@@ -738,37 +736,9 @@ with tab2:
 
         st.markdown("**Cenário de mercado**")
 
-        # Slider CBOT + reset próprio à direita
-        _preco_alterado = (
-            _key_preco_sim in st.session_state
-            and abs(st.session_state[_key_preco_sim] - _preco_atual_usd) > 0.01
-        )
-        if _preco_alterado:
-            _slr_p, _btn_p = st.columns([5, 1])
-            with _slr_p:
-                preco_sim_cbot_usd = st.slider(
-                    f"Preço {cultura_sel} (Chicago) · atual: US$ {_preco_atual_usd:.2f}/bu",
-                    min_value=float(serie_commodity.min() * 0.7) / 100,
-                    max_value=float(serie_commodity.max() * 1.3) / 100,
-                    value=_preco_atual_usd,
-                    step=0.05,
-                    format="US$ %.2f/bu",
-                    key=_key_preco_sim,
-                    help=(
-                        "Cotação internacional na bolsa de Chicago. "
-                        "↺ ao lado volta ao valor de hoje."
-                    ),
-                )
-            with _btn_p:
-                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-                st.button(
-                    "↺",
-                    key=f"reset_preco_btn_{cultura_sel}_{_n_preco}",
-                    help=f"Volta a US$ {_preco_atual_usd:.2f}/bu (cotação atual).",
-                    on_click=_bump_reset_counter,
-                    args=(_counter_preco,),
-                )
-        else:
+        # Slider CBOT — espaço para botão sempre reservado (sem pulo visual)
+        _slr_p, _btn_p = st.columns([5, 1])
+        with _slr_p:
             preco_sim_cbot_usd = st.slider(
                 f"Preço {cultura_sel} (Chicago) · atual: US$ {_preco_atual_usd:.2f}/bu",
                 min_value=float(serie_commodity.min() * 0.7) / 100,
@@ -777,43 +747,22 @@ with tab2:
                 step=0.05,
                 format="US$ %.2f/bu",
                 key=_key_preco_sim,
-                help=(
-                    "Cotação internacional na bolsa de Chicago. "
-                    "Mexa para simular cenário."
-                ),
+                help="Cotação internacional na bolsa de Chicago.",
             )
-
-        # Slider Dólar + reset próprio à direita
-        _dolar_alterado = (
-            _key_dolar_sim in st.session_state
-            and abs(st.session_state[_key_dolar_sim] - _dolar_atual_val) > 0.01
-        )
-        if _dolar_alterado:
-            _slr_d, _btn_d = st.columns([5, 1])
-            with _slr_d:
-                dolar_sim = st.slider(
-                    f"Dólar comercial · atual: R$ {_dolar_atual_val:.2f}",
-                    min_value=float(serie_dolar.min() * 0.85),
-                    max_value=float(serie_dolar.max() * 1.15),
-                    value=_dolar_atual_val,
-                    step=0.05,
-                    format="R$ %.2f",
-                    key=_key_dolar_sim,
-                    help=(
-                        "Cotação do dólar usada no cenário. "
-                        "↺ ao lado volta ao valor de hoje."
-                    ),
-                )
-            with _btn_d:
-                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+        with _btn_p:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if abs(preco_sim_cbot_usd - _preco_atual_usd) > 0.01:
                 st.button(
                     "↺",
-                    key=f"reset_dolar_btn_{cultura_sel}_{_n_dolar}",
-                    help=f"Volta a R$ {_dolar_atual_val:.2f} (PTAX atual).",
+                    key=f"reset_preco_btn_{cultura_sel}_{_n_preco}",
+                    help=f"Volta a US$ {_preco_atual_usd:.2f}/bu (cotação atual).",
                     on_click=_bump_reset_counter,
-                    args=(_counter_dolar,),
+                    args=(_counter_preco,),
                 )
-        else:
+
+        # Slider Dólar — espaço para botão sempre reservado
+        _slr_d, _btn_d = st.columns([5, 1])
+        with _slr_d:
             dolar_sim = st.slider(
                 f"Dólar comercial · atual: R$ {_dolar_atual_val:.2f}",
                 min_value=float(serie_dolar.min() * 0.85),
@@ -822,11 +771,18 @@ with tab2:
                 step=0.05,
                 format="R$ %.2f",
                 key=_key_dolar_sim,
-                help=(
-                    "Cotação do dólar usada no cenário. "
-                    "Dólar mais alto = mais reais por dólar de venda."
-                ),
+                help="Cotação do dólar usada no cenário. Dólar mais alto = mais reais por venda.",
             )
+        with _btn_d:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if abs(dolar_sim - _dolar_atual_val) > 0.01:
+                st.button(
+                    "↺",
+                    key=f"reset_dolar_btn_{cultura_sel}_{_n_dolar}",
+                    help=f"Volta a R$ {_dolar_atual_val:.2f} (PTAX atual).",
+                    on_click=_bump_reset_counter,
+                    args=(_counter_dolar,),
+                )
         # Preço efetivo — município ou média ponderada do estado
         if escopo_sim == "Município":
             basis_mun_sim = float(basis_municipios.get(mun_sim, basis_usd))
@@ -1066,31 +1022,9 @@ with tab3:
 
     col_c1, col_c2 = st.columns(2)
     with col_c1:
-        if _custo_alt:
-            _slr_c, _btn_c = st.columns([5, 1])
-            with _slr_c:
-                custo_ha = st.slider(
-                    f"Custo de produção — {cultura_sel}",
-                    min_value=2000.0, max_value=10000.0,
-                    value=_custo_default_rc, step=100.0,
-                    format="R$ %.0f/ha",
-                    key=_key_custo_rc,
-                    help=(
-                        f"Default: custo operacional total (COT) CONAB para "
-                        f"{'Cerejeiras/RO' if cultura_sel == 'Soja' else 'Cone Sul/RO milho safrinha'}, "
-                        f"safra 2024/25. ↺ ao lado volta ao default."
-                    )
-                )
-            with _btn_c:
-                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-                st.button(
-                    "↺",
-                    key=f"reset_custo_rc_btn_{cultura_sel}_{_n_custo_rc}",
-                    help=f"Volta a R$ {_custo_default_rc:,.0f}/ha (CONAB).",
-                    on_click=_bump_reset_counter,
-                    args=(_counter_custo_rc,),
-                )
-        else:
+        # Custo — espaço para botão sempre reservado
+        _slr_c, _btn_c = st.columns([5, 1])
+        with _slr_c:
             custo_ha = st.slider(
                 f"Custo de produção — {cultura_sel}",
                 min_value=2000.0, max_value=10000.0,
@@ -1100,37 +1034,28 @@ with tab3:
                 help=(
                     f"Default: custo operacional total (COT) CONAB para "
                     f"{'Cerejeiras/RO' if cultura_sel == 'Soja' else 'Cone Sul/RO milho safrinha'}, "
-                    f"safra 2024/25. Inclui insumos, operações mecanizadas, mão de obra e "
-                    f"arrendamento. NÃO inclui frete (já considerado no deságio). "
+                    f"safra 2024/25. Inclui insumos, operações, mão de obra e arrendamento. "
                     f"Fonte: CONAB - Custos de Produção Agrícola."
                 )
             )
+        with _btn_c:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if _custo_alt:
+                st.button(
+                    "↺",
+                    key=f"reset_custo_rc_btn_{cultura_sel}_{_n_custo_rc}",
+                    help=f"Volta a R$ {_custo_default_rc:,.0f}/ha (CONAB).",
+                    on_click=_bump_reset_counter,
+                    args=(_counter_custo_rc,),
+                )
         st.caption(
             f"**Referência CONAB:** R$ {_custo_default_rc:,.0f}/ha "
             f"({'Cerejeiras/RO' if cultura_sel == 'Soja' else 'Cone Sul/RO'} safra 2024/25)"
         )
     with col_c2:
-        if _choque_alt:
-            _slr_ch, _btn_ch = st.columns([5, 1])
-            with _slr_ch:
-                choque_frete = st.slider(
-                    "Choque de frete adicional",
-                    min_value=0.0, max_value=2000.0,
-                    value=0.0, step=50.0,
-                    format="R$ %.0f/ha",
-                    key=_key_choque_rc,
-                    help="Choque logístico (diesel, fechamento de via). ↺ volta a 0."
-                )
-            with _btn_ch:
-                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-                st.button(
-                    "↺",
-                    key=f"reset_choque_rc_btn_{cultura_sel}_{_n_choque_rc}",
-                    help="Volta a R$ 0/ha (sem choque adicional).",
-                    on_click=_bump_reset_counter,
-                    args=(_counter_choque_rc,),
-                )
-        else:
+        # Choque — espaço para botão sempre reservado
+        _slr_ch, _btn_ch = st.columns([5, 1])
+        with _slr_ch:
             choque_frete = st.slider(
                 "Choque de frete adicional",
                 min_value=0.0, max_value=2000.0,
@@ -1141,6 +1066,16 @@ with tab3:
                      "logístico (alta do diesel, fechamento de via, gargalo no Arco Norte). "
                      "Útil para testar resiliência da margem em cenários adversos."
             )
+        with _btn_ch:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if _choque_alt:
+                st.button(
+                    "↺",
+                    key=f"reset_choque_rc_btn_{cultura_sel}_{_n_choque_rc}",
+                    help="Volta a R$ 0/ha (sem choque adicional).",
+                    on_click=_bump_reset_counter,
+                    args=(_counter_choque_rc,),
+                )
         st.caption(
             f"**Custo total aplicado:** R$ {custo_ha + choque_frete:,.0f}/ha"
             + (" *(custo + choque)*" if choque_frete > 0 else "")
