@@ -863,102 +863,41 @@ with tab2:
         f"deságio variável por município (base US$ {basis_usd:+.2f}, ajustado por distância ao terminal)"
         if basis_geo else f"deságio US$ {basis_usd:+.2f}"
     )
+    # Concentração geográfica: descreve quanto da receita estadual vem dos top-N
+    # municípios. Usa receita estimada no cenário atual — mesmo regime monetário,
+    # sem viés temporal de cruzamento com PIB municipal defasado.
+    df_conc_receita = df_mapa[df_mapa[cfg["qtd_col"]] > 0].copy()
+    receita_total_ro = float(df_conc_receita["Receita_BRL_Mi"].sum())
+    if receita_total_ro > 0 and len(df_conc_receita) >= 5:
+        df_conc_sorted = df_conc_receita.sort_values("Receita_BRL_Mi", ascending=False)
+        top5 = df_conc_sorted.head(5)
+        pct_top5 = float(top5["Receita_BRL_Mi"].sum()) / receita_total_ro * 100
+        pct_top1 = float(top5["Receita_BRL_Mi"].iloc[0]) / receita_total_ro * 100
+        top1_nome = str(top5["Municipio"].iloc[0])
+        n_municipios = len(df_conc_receita)
+        concentracao_caption = (
+            f"<b>Concentração geográfica:</b> top 5 municípios respondem por "
+            f"{pct_top5:.1f}% da receita estadual estimada nesse cenário "
+            f"(top 1 — {top1_nome} — sozinho responde por {pct_top1:.1f}%). "
+            f"Total de {n_municipios} municípios produtores. "
+            f"Choque local em qualquer um dos principais afeta proporcionalmente o agregado de RO."
+        )
+    else:
+        concentracao_caption = ""
+
     st.caption(
         f"O que olhar aqui: cada município pintado pela receita estimada no cenário simulado acima. "
         f"Cores mais claras = receita maior. **Cenário aplicado:** Chicago US$ {preco_sim_cbot_usd:.2f}/bu, "
         f"{basis_label}, dólar R$ {dolar_sim:.2f}. "
         f"Receita não inclui custos — para ver margem, ver aba *Risco Cambial*."
     )
-
-    # --- DEPENDÊNCIA: % do PIB Agro do município selecionado ---
-    if "PIB_Agro_Mil" in df_prod.columns and escopo_sim == "Município":
-        st.markdown("---")
-        st.subheader(f"Dependência de {cultura_sel} em {mun_sim}")
-
-        df_exp = df_prod.copy()
-        df_exp["preco_efetivo_usd"] = (
-            preco_sim_cbot_usd
-            + df_exp["Municipio"].map(basis_municipios).fillna(basis_usd)
-        )
-        df_exp["Receita_BRL_Mi"] = (
-            df_exp[cfg["qtd_col"]] * fator
-            * BUSHELS_POR_TONELADA[cultura_sel]
-            * df_exp["preco_efetivo_usd"]
-            * dolar_sim
-            / 1e6
-        )
-        df_exp["Exposicao_Pct"] = np.where(
-            df_exp["PIB_Agro_Mil"] > 0,
-            (df_exp["Receita_BRL_Mi"] * 1000 / df_exp["PIB_Agro_Mil"]) * 100,
-            0.0,
-        )
-
-        df_prod_ativos = df_exp[df_exp[cfg["qtd_col"]] > 0]
-        media_exp_ro = df_prod_ativos["Exposicao_Pct"].mean()
-
-        mun_exp_row = df_exp[df_exp["Municipio"] == mun_sim]
-        if not mun_exp_row.empty:
-            exp_pct = float(mun_exp_row["Exposicao_Pct"].iloc[0])
-            receita_mun = float(mun_exp_row["Receita_BRL_Mi"].iloc[0])
-            pib_mun = float(mun_exp_row["PIB_Agro_Mil"].iloc[0])
-            ranking_sorted = df_prod_ativos.sort_values("Exposicao_Pct", ascending=False).reset_index(drop=True)
-            rank_idx = ranking_sorted[ranking_sorted["Municipio"] == mun_sim].index
-            rank_pos = int(rank_idx[0]) + 1 if len(rank_idx) > 0 else None
-            total_muns = len(ranking_sorted)
-
-            c_e1, c_e2, c_e3 = st.columns(3)
-            c_e1.metric(
-                "Exposição ao preço",
-                f"{exp_pct:.1f}% do PIB Agro",
-                f"{exp_pct - media_exp_ro:+.1f}pp vs. média RO ({media_exp_ro:.1f}%)",
-                help=(
-                    f"Percentual do PIB Agropecuário de {mun_sim} representado pela "
-                    f"receita estimada de {cultura_sel.lower()} no cenário atual. "
-                    "Quanto maior, mais vulnerável o município a uma queda de preço."
-                ),
-            )
-            c_e2.metric(
-                f"Receita estimada — {cultura_sel}",
-                f"R$ {receita_mun:,.1f} Mi",
-                help=f"No cenário atual do simulador. PIB Agro do município: R$ {pib_mun/1000:,.0f} Mi (IBGE).",
-            )
-            if rank_pos:
-                c_e3.metric(
-                    "Ranking de exposição em RO",
-                    f"{rank_pos}º de {total_muns}",
-                    help="Posição entre os municípios produtores de RO, do mais ao menos exposto.",
-                )
-
-            if exp_pct >= 70:
-                st.markdown(
-                    f'<div class="disclaimer" style="border-left-color:#ff4b4b;">'
-                    f"<b>Alta concentração:</b> {cultura_sel} representa {exp_pct:.1f}% do PIB Agro de {mun_sim}. "
-                    f"Um choque de −20% no preço reduziria o PIB Agropecuário local em cerca de "
-                    f"<b>{exp_pct * 0.20:.1f}%</b>."
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-
-        st.markdown("**10 municípios mais expostos em RO**")
-        top10 = df_prod_ativos.sort_values("Exposicao_Pct", ascending=True).tail(10)
-        top10["cor"] = top10["Municipio"].apply(lambda m: "#ff4b4b" if m == mun_sim else "#00d26a")
-        fig_top10 = px.bar(
-            top10, x="Exposicao_Pct", y="Municipio",
-            orientation="h", color="cor", color_discrete_map="identity",
-            labels={"Exposicao_Pct": "% do PIB Agro", "Municipio": ""},
-        )
-        fig_top10.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font_color="white", showlegend=False,
-            height=320, margin={"t": 10, "b": 0, "l": 0, "r": 0},
-            hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
-        )
-        st.plotly_chart(fig_top10, width='stretch', config={'displayModeBar': False})
-        st.caption(
-            f"Exposição = receita estimada de {cultura_sel.lower()} ÷ PIB Agropecuário municipal × 100. "
-            f"Destaque em vermelho: {mun_sim}. "
-            f"Fonte PIB Agro: IBGE — Produto Interno Bruto dos Municípios. "
-            f"Cenário aplicado: o mesmo do simulador acima."
+    if concentracao_caption:
+        st.markdown(
+            f'<div style="background:#1e2130;border-left:3px solid #ffbd45;padding:10px 14px;'
+            f'border-radius:4px;font-size:13px;color:#d0d4dc;margin-top:8px;">'
+            f"{concentracao_caption}"
+            f'</div>',
+            unsafe_allow_html=True,
         )
 
 # --- ABA 3: RISCO CAMBIAL ---
@@ -1345,6 +1284,164 @@ with tab4:
         f"{legenda_extra} · Custo: R$ {custo_ha_ms:,.0f}/ha · "
         f"Curva tracejada = break-even (acima = câmbio cobre o custo; abaixo = prejuízo). "
         f"Estrela amarela = cenário atual. {n_total_hist} semanas analisadas."
+    )
+
+    # --- MATRIZ DE SENSIBILIDADE CÂMBIO × COTAÇÃO ---
+    # Tabulação determinística da fórmula de margem para um intervalo de combinações.
+    # Padrão usado em mesa de crédito agro: cliente pergunta "se o dólar for X e a soja
+    # for Y, sobra quanto?". A matriz responde para todas as combinações de uma vez.
+    st.markdown("---")
+    st.subheader("Matriz de Sensibilidade — Câmbio × Cotação Chicago")
+    st.markdown(
+        '<div class="context-box">'
+        f"<b>O que mostra:</b> margem em R$/ha para cada combinação de câmbio (linhas) e "
+        f"cotação CBOT (colunas), mantendo fixos os parâmetros configurados acima "
+        f"(custo, basis, produtividade). "
+        f"<span style='color:#00d26a;font-weight:600'>Verde</span> = margem positiva; "
+        f"<span style='color:#ff4b4b;font-weight:600'>vermelho</span> = margem negativa. "
+        f"Borda branca destaca a célula mais próxima do <b>cenário atual</b> "
+        f"(R$ {dolar_atual:.2f} × US$ {preco_cbot_usd:.2f}/bu)."
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # Eixos calibrados automaticamente pela amplitude observada nos últimos 10 anos
+    # (CBOT/Yahoo Finance e PTAX/BCB SGS 1). Garante que cenário atual está no range.
+    _corte_matriz = pd.Timestamp.now() - pd.DateOffset(years=10)
+    _hist_cbot_usd = df_cot.loc[df_cot.index >= _corte_matriz, ticker_col_ms].dropna() / 100
+    _hist_dolar = df_cot.loc[df_cot.index >= _corte_matriz, "Dolar_PTAX"].dropna()
+
+    if not _hist_cbot_usd.empty:
+        _cbot_min = int(np.floor(min(_hist_cbot_usd.min(), preco_cbot_usd - 1)))
+        _cbot_max = int(np.ceil(max(_hist_cbot_usd.max(), preco_cbot_usd + 1)))
+    else:
+        _cbot_min, _cbot_max = 8, 18
+    cbot_range = list(range(_cbot_min, _cbot_max + 1))
+
+    if not _hist_dolar.empty:
+        _dolar_min = float(np.floor(min(_hist_dolar.min(), dolar_atual - 0.3) * 10) / 10)
+        _dolar_max = float(np.ceil(max(_hist_dolar.max(), dolar_atual + 0.3) * 10) / 10)
+    else:
+        _dolar_min, _dolar_max = 4.50, 6.50
+    _n_dolar_steps = int(round((_dolar_max - _dolar_min) / 0.10))
+    dolar_range = [round(_dolar_min + 0.10 * i, 2) for i in range(_n_dolar_steps + 1)]
+
+    cbot_hist_min, cbot_hist_max = (
+        (float(_hist_cbot_usd.min()), float(_hist_cbot_usd.max()))
+        if not _hist_cbot_usd.empty else (None, None)
+    )
+    dolar_hist_min, dolar_hist_max = (
+        (float(_hist_dolar.min()), float(_hist_dolar.max()))
+        if not _hist_dolar.empty else (None, None)
+    )
+
+    # Margem = (CBOT/100 + basis) × bushels/t × prod_t_ha × dólar − custo
+    matriz_margem = []
+    for d in dolar_range:
+        linha = []
+        for c in cbot_range:
+            margem = (
+                (c + basis_ms) * bushels_t * prod_t_ha_ms * d
+                - custo_ha_ms
+            )
+            linha.append(margem)
+        matriz_margem.append(linha)
+
+    df_matriz = pd.DataFrame(
+        matriz_margem,
+        index=[f"R$ {d:.2f}" for d in dolar_range],
+        columns=[f"US$ {c}" for c in cbot_range],
+    )
+
+    # Texto exibido em cada célula: margem em R$/ha (k = mil)
+    annotacoes = [
+        [f"{v/1000:+.1f}k" if abs(v) >= 1000 else f"{v:+.0f}" for v in linha]
+        for linha in matriz_margem
+    ]
+
+    # Identifica a célula do cenário atual para destacar com borda
+    idx_dolar_atual = min(range(len(dolar_range)),
+                          key=lambda i: abs(dolar_range[i] - dolar_atual))
+    idx_cbot_atual = min(range(len(cbot_range)),
+                         key=lambda i: abs(cbot_range[i] - preco_cbot_usd))
+
+    fig_matriz = go.Figure(data=go.Heatmap(
+        z=matriz_margem,
+        x=[f"US$ {c}" for c in cbot_range],
+        y=[f"R$ {d:.2f}" for d in dolar_range],
+        colorscale=[
+            [0.0, "#7f1d1d"], [0.45, "#ff4b4b"],
+            [0.5, "#1e2130"],  # zero como neutro escuro
+            [0.55, "#00d26a"], [1.0, "#14532d"],
+        ],
+        zmid=0,
+        text=annotacoes,
+        texttemplate="%{text}",
+        textfont=dict(size=10, color="white"),
+        hovertemplate=(
+            "<b>Câmbio %{y} · CBOT %{x}/bu</b><br>"
+            "Margem: R$ %{z:,.0f}/ha<extra></extra>"
+        ),
+        colorbar=dict(title="Margem<br>(R$/ha)", tickformat=",.0f"),
+    ))
+    # Marca o cenário atual com retângulo branco
+    fig_matriz.add_shape(
+        type="rect",
+        x0=idx_cbot_atual - 0.5, x1=idx_cbot_atual + 0.5,
+        y0=idx_dolar_atual - 0.5, y1=idx_dolar_atual + 0.5,
+        line=dict(color="white", width=3),
+        fillcolor="rgba(0,0,0,0)",
+    )
+    fig_matriz.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_color="white",
+        xaxis=dict(title="Cotação Chicago (US$/bu)", side="top"),
+        yaxis=dict(title="Câmbio (R$/US$)", autorange="reversed"),
+        margin={"t": 40, "b": 40, "l": 0, "r": 0},
+        height=600,
+        hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
+    )
+    st.plotly_chart(fig_matriz, width='stretch', config={'displayModeBar': False})
+
+    # KPIs auxiliares: zona de break-even (qual câmbio mínimo por nível de CBOT)
+    breakeven_por_cbot = []
+    for c in cbot_range:
+        # margem = 0 → dólar = custo / ((cbot/100 + basis) × bushels × prod_t_ha)
+        denominador = (c + basis_ms) * bushels_t * prod_t_ha_ms
+        if denominador > 0:
+            breakeven_por_cbot.append((c, custo_ha_ms / denominador))
+
+    if breakeven_por_cbot:
+        be_str = " · ".join(
+            f"<span style='color:#9ca3af'>US$ {c}/bu</span> → "
+            f"<b>R$ {d:.2f}</b>"
+            for c, d in breakeven_por_cbot[::3]  # mostra a cada 3 pontos para não poluir
+        )
+        st.markdown(
+            f'<div style="background:#1e2130;border-left:3px solid #ffbd45;padding:10px 14px;'
+            f'border-radius:4px;font-size:13px;color:#d0d4dc;margin-top:8px;">'
+            f"<b>Câmbio mínimo (break-even) por nível de CBOT:</b> {be_str}"
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    if cbot_hist_min is not None and dolar_hist_min is not None:
+        calib_str = (
+            f"Eixos calibrados pela amplitude histórica observada (últimos 10 anos): "
+            f"CBOT min/max US$ {cbot_hist_min:.2f}/bu / US$ {cbot_hist_max:.2f}/bu · "
+            f"PTAX min/max R$ {dolar_hist_min:.2f} / R$ {dolar_hist_max:.2f} "
+            f"(dados: Yahoo Finance + BCB SGS 1). "
+        )
+    else:
+        calib_str = ""
+    st.caption(
+        f"Fórmula: margem (R$/ha) = (CBOT US$/bu + basis US$/bu) × {bushels_t:.4f} bu/t × "
+        f"{prod_t_ha_ms*1000:,.0f} kg/ha × dólar − custo R$ {custo_ha_ms:,.0f}/ha. "
+        f"Basis aplicado: US$ {basis_ms:+.2f}/bu. "
+        f"{calib_str}"
+        f"Tabulação determinística — não inclui basis sazonal, volatilidade intra-mês "
+        f"nem é recomendação operacional de hedge ou comercialização."
     )
 
 # --- ABA 5: SAZONALIDADE E VARIAÇÃO CAMBIAL INTRA-SAFRA ---
