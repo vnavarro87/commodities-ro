@@ -609,9 +609,9 @@ with tab1:
                 font_color="white",
                 xaxis_title="",
                 yaxis_title=f"Índice (base 100 = {data_inicio})",
-                margin={"t": 10, "b": 60, "l": 0, "r": 0},
-                height=320,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=1),
+                margin={"t": 10, "b": 70, "l": 0, "r": 0},
+                height=360,
+                legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5),
                 hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
             )
             st.plotly_chart(fig_comp, width='stretch', config={'displayModeBar': False})
@@ -1628,9 +1628,9 @@ with tab5:
         yaxis=dict(title="Índice sazonal (preço ÷ média móvel anual)", tickformat=".2f",
                    gridcolor="#2b2f3e"),
         xaxis=dict(title="", gridcolor="#2b2f3e"),
-        legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="right", x=1),
-        margin={"t": 40, "b": 60, "l": 0, "r": 0},
-        height=380,
+        legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5),
+        margin={"t": 40, "b": 90, "l": 0, "r": 0},
+        height=420,
         hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
     )
     st.plotly_chart(fig_sz, width='stretch', config={'displayModeBar': False})
