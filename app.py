@@ -1032,19 +1032,39 @@ with tab3:
             height=600,
             margin={"t": 20, "b": 0, "l": 0, "r": 0},
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
+            xaxis=dict(tickformat=",.2f"),
+        )
+        fig_be.update_traces(
+            hovertemplate="<b>%{y}</b><br>Câmbio mínimo: R$ %{x:,.2f}<extra></extra>",
         )
         st.plotly_chart(fig_be, width='stretch', config={'displayModeBar': False})
 
     with col_g2:
-        st.markdown("**Margem estimada no cenário atual (R$ Mi)**")
+        st.markdown("**Margem estimada no cenário atual**")
         df_marg = df_be.sort_values("Margem_Atual_BRL_Mi", ascending=True).tail(20)
         df_marg["cor_marg"] = df_marg["Margem_Atual_BRL_Mi"].apply(
             lambda v: "#00d26a" if v >= 0 else "#ff4b4b"
         )
+
+        # Pré-formata margem em escala humana (Mi vs mil) — preserva visibilidade
+        # de municípios com margem absoluta < R$ 1 Mi (ex: ±R$ 250 mil)
+        def _fmt_margem(val_mi):
+            val_brl = val_mi * 1_000_000
+            sinal = "+" if val_brl >= 0 else "−"
+            abs_val = abs(val_brl)
+            if abs_val >= 1_000_000:
+                return f"R$ {sinal}{abs_val/1e6:,.2f} Mi"
+            if abs_val >= 1_000:
+                return f"R$ {sinal}{abs_val/1e3:,.0f} mil"
+            return f"R$ {sinal}{abs_val:,.0f}"
+
+        df_marg["margem_label"] = df_marg["Margem_Atual_BRL_Mi"].apply(_fmt_margem)
+
         fig_m = px.bar(
             df_marg, x="Margem_Atual_BRL_Mi", y="Municipio",
             orientation="h", color="cor_marg", color_discrete_map="identity",
             labels={"Margem_Atual_BRL_Mi": "Margem (R$ Mi)", "Municipio": ""},
+            custom_data=["margem_label"],
         )
         fig_m.add_vline(x=0, line_color="white", line_width=1)
         fig_m.update_layout(
@@ -1054,6 +1074,10 @@ with tab3:
             height=600,
             margin={"t": 20, "b": 0, "l": 0, "r": 0},
             hoverlabel=dict(bgcolor="#1e2130", bordercolor="#00d26a", font=dict(color="#ffffff")),
+            xaxis=dict(tickformat=",.1f"),
+        )
+        fig_m.update_traces(
+            hovertemplate="<b>%{y}</b><br>Margem: %{customdata[0]}<extra></extra>",
         )
         st.plotly_chart(fig_m, width='stretch', config={'displayModeBar': False})
 
