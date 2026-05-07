@@ -682,33 +682,31 @@ with tab2:
         _preco_atual_usd = float(preco_atual) / 100
         _dolar_atual_val = float(dolar_atual)
 
-        st.markdown("**Cenário de mercado**")
-
-        # Indica se sliders estão em valores diferentes do mercado atual
-        _preco_alterado = (
-            _key_preco_sim in st.session_state
-            and abs(st.session_state[_key_preco_sim] - _preco_atual_usd) > 0.01
-        )
-        _dolar_alterado = (
-            _key_dolar_sim in st.session_state
-            and abs(st.session_state[_key_dolar_sim] - _dolar_atual_val) > 0.01
-        )
-        _alterado = _preco_alterado or _dolar_alterado
-
-        if st.button(
-            (
-                "↺ Voltar ao mercado atual "
-                f"(US$ {_preco_atual_usd:.2f} × R$ {_dolar_atual_val:.2f})"
-            ),
-            key=f"reset_{cultura_sel}",
-            help="Restaura preço CBOT e câmbio aos valores de mercado mais recentes.",
-            type="primary" if _alterado else "secondary",
-            width='stretch',
-            disabled=not _alterado,
-        ):
-            st.session_state[_key_preco_sim] = _preco_atual_usd
-            st.session_state[_key_dolar_sim] = _dolar_atual_val
-            st.rerun()
+        # Botão de reset minimalista alinhado à direita do título.
+        # Usa pop() em vez de set para evitar conflito com value= do slider.
+        _ttl_col, _btn_col = st.columns([3, 2])
+        with _ttl_col:
+            st.markdown("**Cenário de mercado**")
+        with _btn_col:
+            _preco_alterado = (
+                _key_preco_sim in st.session_state
+                and abs(st.session_state[_key_preco_sim] - _preco_atual_usd) > 0.01
+            )
+            _dolar_alterado = (
+                _key_dolar_sim in st.session_state
+                and abs(st.session_state[_key_dolar_sim] - _dolar_atual_val) > 0.01
+            )
+            if (_preco_alterado or _dolar_alterado) and st.button(
+                "↺ resetar",
+                key=f"reset_mkt_{cultura_sel}",
+                help=(
+                    f"Volta aos valores de mercado: "
+                    f"US$ {_preco_atual_usd:.2f}/bu × R$ {_dolar_atual_val:.2f}"
+                ),
+            ):
+                st.session_state.pop(_key_preco_sim, None)
+                st.session_state.pop(_key_dolar_sim, None)
+                st.rerun()
 
         preco_sim_cbot_usd = st.slider(
             f"Preço {cultura_sel} (Chicago) · atual: US$ {_preco_atual_usd:.2f}/bu",
@@ -953,13 +951,43 @@ with tab3:
             unsafe_allow_html=True,
         )
 
+    _key_custo_rc = f"custo_rc_{cultura_sel}"
+    _key_choque_rc = f"choque_rc_{cultura_sel}"
+    _custo_default_rc = CUSTO_HA_DEFAULT[cultura_sel]
+
+    # Linha de reset minimalista alinhada à direita
+    _custo_alt = (
+        _key_custo_rc in st.session_state
+        and abs(st.session_state[_key_custo_rc] - _custo_default_rc) > 0.5
+    )
+    _choque_alt = (
+        _key_choque_rc in st.session_state
+        and abs(st.session_state[_key_choque_rc]) > 0.5
+    )
+    if _custo_alt or _choque_alt:
+        _ttl_rc, _btn_rc = st.columns([4, 1])
+        with _ttl_rc:
+            st.markdown("**Custo e cenário de estresse**")
+        with _btn_rc:
+            if st.button(
+                "↺ resetar",
+                key=f"reset_rc_{cultura_sel}",
+                help=f"Volta a custo CONAB R$ {_custo_default_rc:,.0f}/ha e choque de frete = 0.",
+            ):
+                st.session_state.pop(_key_custo_rc, None)
+                st.session_state.pop(_key_choque_rc, None)
+                st.rerun()
+    else:
+        st.markdown("**Custo e cenário de estresse**")
+
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         custo_ha = st.slider(
             f"Custo de produção — {cultura_sel}",
             min_value=2000.0, max_value=10000.0,
-            value=CUSTO_HA_DEFAULT[cultura_sel], step=100.0,
+            value=_custo_default_rc, step=100.0,
             format="R$ %.0f/ha",
+            key=_key_custo_rc,
             help=(
                 f"Default: custo operacional total (COT) CONAB para "
                 f"{'Cerejeiras/RO' if cultura_sel == 'Soja' else 'Cone Sul/RO milho safrinha'}, "
@@ -969,7 +997,7 @@ with tab3:
             )
         )
         st.caption(
-            f"**Referência CONAB:** R$ {CUSTO_HA_DEFAULT[cultura_sel]:,.0f}/ha "
+            f"**Referência CONAB:** R$ {_custo_default_rc:,.0f}/ha "
             f"({'Cerejeiras/RO' if cultura_sel == 'Soja' else 'Cone Sul/RO'} safra 2024/25)"
         )
     with col_c2:
@@ -978,6 +1006,7 @@ with tab3:
             min_value=0.0, max_value=2000.0,
             value=0.0, step=50.0,
             format="R$ %.0f/ha",
+            key=_key_choque_rc,
             help="Em zero: modelo padrão (basis cobre frete). Positivo: simula choque "
                  "logístico (alta do diesel, fechamento de via, gargalo no Arco Norte). "
                  "Útil para testar resiliência da margem em cenários adversos."
@@ -1173,13 +1202,40 @@ with tab4:
             mun_ms = None
             st.caption("Média ponderada pela produção de todos os municípios produtores de Rondônia.")
     with col_ms3:
-        custo_ha_ms = st.slider(
-            f"Custo de produção — {cultura_sel}",
-            min_value=2000.0, max_value=10000.0,
-            value=CUSTO_HA_DEFAULT[cultura_sel], step=100.0,
-            format="R$ %.0f/ha", key="custo_ms",
-            help=f"Default CONAB: R$ {CUSTO_HA_DEFAULT[cultura_sel]:,.0f}/ha (COT safra 2024/25).",
+        _key_custo_ms = f"custo_ms_{cultura_sel}"
+        _custo_default_ms = CUSTO_HA_DEFAULT[cultura_sel]
+        _custo_ms_alt = (
+            _key_custo_ms in st.session_state
+            and abs(st.session_state[_key_custo_ms] - _custo_default_ms) > 0.5
         )
+        _slider_label = f"Custo de produção — {cultura_sel}"
+        if _custo_ms_alt:
+            _lbl_col, _rst_col = st.columns([5, 1])
+            with _lbl_col:
+                custo_ha_ms = st.slider(
+                    _slider_label,
+                    min_value=2000.0, max_value=10000.0,
+                    value=_custo_default_ms, step=100.0,
+                    format="R$ %.0f/ha", key=_key_custo_ms,
+                    help=f"Default CONAB: R$ {_custo_default_ms:,.0f}/ha (COT safra 2024/25).",
+                )
+            with _rst_col:
+                st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)  # alinha vertical
+                if st.button(
+                    "↺",
+                    key=f"reset_ms_{cultura_sel}",
+                    help=f"Volta a R$ {_custo_default_ms:,.0f}/ha (CONAB)",
+                ):
+                    st.session_state.pop(_key_custo_ms, None)
+                    st.rerun()
+        else:
+            custo_ha_ms = st.slider(
+                _slider_label,
+                min_value=2000.0, max_value=10000.0,
+                value=_custo_default_ms, step=100.0,
+                format="R$ %.0f/ha", key=_key_custo_ms,
+                help=f"Default CONAB: R$ {_custo_default_ms:,.0f}/ha (COT safra 2024/25).",
+            )
 
     # --- PARÂMETROS DE BREAK-EVEN ---
     bushels_t = BUSHELS_POR_TONELADA[cultura_sel]
